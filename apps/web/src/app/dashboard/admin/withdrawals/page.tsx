@@ -17,7 +17,7 @@ interface Withdrawal {
   userId: string;
   amount: number;
   status: string;
-  stripeTransferId: string;
+  stripeTransferId?: string;
   createdAt: string;
   processedAt?: string;
 }
