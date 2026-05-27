@@ -17,7 +17,7 @@ interface AdminUser {
   name: string;
   role: string;
   trustScore: number;
-  suspended: boolean;
+  isSuspended: boolean;
   createdAt: string;
 }
 
@@ -51,7 +51,7 @@ export default function AdminUsersPage() {
     try {
       await adminApi.suspendUser(id);
       toast({ title: "User suspended" });
-      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, suspended: true } : u));
+      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isSuspended: true } : u));
     } catch {
       toast({ title: "Action failed", variant: "destructive" });
     } finally { setActing(null); }
@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
     try {
       await adminApi.unsuspendUser(id);
       toast({ title: "User unsuspended" });
-      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, suspended: false, trustScore: 50 } : u));
+      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isSuspended: false, trustScore: 50 } : u));
     } catch {
       toast({ title: "Action failed", variant: "destructive" });
     } finally { setActing(null); }
@@ -118,14 +118,14 @@ export default function AdminUsersPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={u.suspended ? "destructive" : "success"}>
-                          {u.suspended ? "Suspended" : "Active"}
+                        <Badge variant={u.isSuspended ? "destructive" : "success"}>
+                          {u.isSuspended ? "Suspended" : "Active"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">{format(new Date(u.createdAt), "MMM d, yyyy")}</TableCell>
                       <TableCell>
                         {u.role !== "admin" && (
-                          u.suspended ? (
+                          u.isSuspended ? (
                             <Button size="sm" variant="outline" onClick={() => handleUnsuspend(u.id)} disabled={acting === u.id}>
                               Unsuspend
                             </Button>
