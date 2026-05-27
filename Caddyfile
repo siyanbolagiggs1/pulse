@@ -1,0 +1,28 @@
+# Replace pulse.app with your actual domain.
+# Caddy automatically provisions and renews TLS via Let's Encrypt.
+
+pulse.app, www.pulse.app {
+    # API routes
+    handle /api/* {
+        reverse_proxy api:5000
+    }
+
+    # Screenshot uploads served by API
+    handle /uploads/* {
+        reverse_proxy api:5000
+    }
+
+    # Everything else goes to Next.js
+    handle {
+        reverse_proxy web:3000
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}

@@ -1,0 +1,24 @@
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Go
+apps/api/uploads/
+
+# Node
+apps/web/node_modules/
+apps/web/.next/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Fly.io
+fly.toml.bak

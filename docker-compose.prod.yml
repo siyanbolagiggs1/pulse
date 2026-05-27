@@ -1,0 +1,111 @@
+version: "3.9"
+
+# Production compose — used on a VPS with a real domain.
+# Usage:
+#   docker-compose -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   1. DNS A record pointing your domain to this server's IP
+#   2. apps/api/.env.prod with real secrets (NODE_ENV=production)
+#   3. apps/web/.env.prod with NEXT_PUBLIC_API_URL=https://pulse.app/api
+#   4. Build-arg values set below match your domain
+
+services:
+  # ── MongoDB ──────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: pulse_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS}
+      MONGO_INITDB_DATABASE: pulse
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: pulse_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── API (Go/Gin) ─────────────────────────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: pulse_api
+    restart: unless-stopped
+    env_file:
+      - ./apps/api/.env.prod
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - internal
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Web (Next.js) ────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://pulse.app/api
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+    container_name: pulse_web
+    restart: unless-stopped
+    networks:
+      - internal
+    depends_on:
+      - api
+
+  # ── Caddy (HTTPS reverse proxy) ───────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: pulse_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    depends_on:
+      - api
+      - web
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  redis_data:
+  uploads:
+  caddy_data:
+  caddy_config:

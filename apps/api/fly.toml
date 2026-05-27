@@ -1,0 +1,50 @@
+# Fly.io configuration for the Pulse API.
+# Run `flyctl launch` once to create the app, then `flyctl deploy` to deploy.
+# Set secrets with: flyctl secrets set KEY=value
+
+app = "pulse-api"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "5000"
+  NODE_ENV = "production"
+  DB_NAME = "pulse"
+  UPLOAD_DIR = "/app/uploads"
+  PLATFORM_COMMISSION_RATE = "0.20"
+  JWT_ACCESS_EXPIRY_MINUTES = "15"
+  JWT_REFRESH_EXPIRY_DAYS = "7"
+
+# Secrets to set via `flyctl secrets set`:
+#   MONGODB_URI
+#   REDIS_URL
+#   JWT_ACCESS_SECRET
+#   JWT_REFRESH_SECRET
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+#   SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM
+#   CLIENT_URL  (e.g. https://pulse.vercel.app)
+
+[http_service]
+  internal_port = 5000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[[mounts]]
+  source = "pulse_uploads"
+  destination = "/app/uploads"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
