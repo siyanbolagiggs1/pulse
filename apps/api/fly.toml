@@ -2,7 +2,7 @@
 # Run `flyctl launch` once to create the app, then `flyctl deploy` to deploy.
 # Set secrets with: flyctl secrets set KEY=value
 
-app = "pulse-api"
+app = "pulse-api-siyan"
 primary_region = "iad"
 
 [build]
