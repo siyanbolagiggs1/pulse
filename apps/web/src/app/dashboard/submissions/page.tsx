@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination } from "@/components/ui/pagination";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, apiFileUrl } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
@@ -80,6 +80,7 @@ export default function SubmissionsPage() {
                     <TableHead>Promoter Earning</TableHead>
                     <TableHead>Submitted</TableHead>
                     <TableHead>Proof</TableHead>
+                    <TableHead>Screenshot</TableHead>
                     {user?.role === "promoter" && <TableHead>Release Date</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -92,6 +93,11 @@ export default function SubmissionsPage() {
                       <TableCell className="text-muted-foreground">{format(new Date(s.submittedAt), "MMM d, yyyy")}</TableCell>
                       <TableCell>
                         <a href={s.repostUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">View</a>
+                      </TableCell>
+                      <TableCell>
+                        {s.screenshotUrl && (
+                          <a href={apiFileUrl(s.screenshotUrl)} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">Screenshot</a>
+                        )}
                       </TableCell>
                       {user?.role === "promoter" && (
                         <TableCell className="text-muted-foreground text-sm">
