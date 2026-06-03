@@ -63,10 +63,10 @@ func handleConnectSocialAccount(c *gin.Context) {
 		switch {
 		case errors.Is(err, ErrAccountAgeTooLow):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrDuplicatePlatform):
+		case errors.Is(err, ErrDuplicatePlatform), errors.Is(err, ErrDuplicateSocialAccount):
 			utils.Fail(c, http.StatusConflict, err.Error())
 		default:
-			utils.Fail(c, http.StatusInternalServerError, "Failed to connect social account")
+			utils.Fail(c, http.StatusInternalServerError, err.Error())
 		}
 		return
 	}

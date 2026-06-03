@@ -2,8 +2,11 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pulse/api/internal/config"
@@ -27,6 +30,9 @@ var (
 // register creates a new user, wallet, and sends a verification email.
 func register(ctx context.Context, req RegisterRequest) (*models.User, string, error) {
 	col := database.GetCollection(models.UsersCollection)
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.Name = strings.TrimSpace(req.Name)
 
 	// Check email uniqueness
 	var existing models.User
@@ -79,6 +85,7 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 
 	// Send verification email (non-blocking — log failures, don't fail registration)
 	go func() {
+		fmt.Printf("\n[DEV] Verification link: %s/verify-email/%s\n", config.App.ClientURL, verifyToken)
 		if err := services.SendVerificationEmail(user.Email, user.Name, verifyToken); err != nil {
 			fmt.Printf("Warning: could not send verification email to %s: %v\n", user.Email, err)
 		}
@@ -95,6 +102,8 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 // login verifies credentials and returns tokens.
 func login(ctx context.Context, req LoginRequest) (*models.User, string, string, error) {
 	col := database.GetCollection(models.UsersCollection)
+
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 
 	var user models.User
 	if err := col.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user); err != nil {
@@ -148,6 +157,9 @@ func logout(ctx context.Context, refreshToken string) error {
 		return nil
 	}
 
+	if database.Redis == nil {
+		return nil
+	}
 	key := fmt.Sprintf("blacklist:%s", refreshToken)
 	return database.Redis.Set(ctx, key, "1", ttl).Err()
 }
@@ -159,14 +171,16 @@ func refresh(ctx context.Context, refreshToken string) (string, error) {
 		return "", ErrInvalidToken
 	}
 
-	// Check Redis blacklist
-	key := fmt.Sprintf("blacklist:%s", refreshToken)
-	exists, err := database.Redis.Exists(ctx, key).Result()
-	if err != nil {
-		return "", err
-	}
-	if exists > 0 {
-		return "", ErrTokenBlacklisted
+	// Check Redis blacklist (skipped if Redis unavailable)
+	if database.Redis != nil {
+		key := fmt.Sprintf("blacklist:%s", refreshToken)
+		exists, err := database.Redis.Exists(ctx, key).Result()
+		if err != nil {
+			return "", err
+		}
+		if exists > 0 {
+			return "", ErrTokenBlacklisted
+		}
 	}
 
 	// Verify token still matches what's stored on the user
@@ -215,6 +229,8 @@ func verifyEmail(ctx context.Context, token string) error {
 func forgotPassword(ctx context.Context, email string) error {
 	col := database.GetCollection(models.UsersCollection)
 
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	var user models.User
 	if err := col.FindOne(ctx, bson.M{"email": email}).Decode(&user); err != nil {
 		// Return nil even if not found — don't expose whether email exists
@@ -240,6 +256,7 @@ func forgotPassword(ctx context.Context, email string) error {
 	}
 
 	go func() {
+		fmt.Printf("\n[DEV] Password reset link: %s/reset-password/%s\n", config.App.ClientURL, token)
 		if err := services.SendPasswordResetEmail(user.Email, user.Name, token); err != nil {
 			fmt.Printf("Warning: could not send reset email to %s: %v\n", user.Email, err)
 		}
@@ -285,6 +302,90 @@ func resetPassword(ctx context.Context, token, newPassword string) error {
 		}},
 	)
 	return err
+}
+
+// googleSignIn verifies a Google ID token and signs in or creates a user.
+func googleSignIn(ctx context.Context, credential, role string) (*models.User, string, error) {
+	if config.App.GoogleClientID == "" {
+		return nil, "", errors.New("Google sign-in is not configured")
+	}
+
+	// Verify the Google ID token.
+	resp, err := http.Get("https://oauth2.googleapis.com/tokeninfo?id_token=" + credential)
+	if err != nil {
+		return nil, "", errors.New("could not verify Google token")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", errors.New("invalid Google token")
+	}
+
+	var info struct {
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified string `json:"email_verified"`
+		Name          string `json:"name"`
+		Picture       string `json:"picture"`
+		Aud           string `json:"aud"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, "", errors.New("could not parse Google token")
+	}
+	if info.Aud != config.App.GoogleClientID {
+		return nil, "", errors.New("invalid Google token audience")
+	}
+	if info.Email == "" {
+		return nil, "", errors.New("no email returned from Google")
+	}
+
+	col := database.GetCollection(models.UsersCollection)
+	var user models.User
+	err = col.FindOne(ctx, bson.M{"email": info.Email}).Decode(&user)
+
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		// New user — create account.
+		if role == "" {
+			role = "promoter"
+		}
+		now := time.Now().UTC()
+		user = models.User{
+			Name:            info.Name,
+			Email:           info.Email,
+			Password:        "", // no password for Google-auth users
+			Role:            models.Role(role),
+			IsEmailVerified: true,
+			IsSuspended:     false,
+			TrustScore:      50,
+			Badges:          []models.VerificationBadge{},
+			Avatar:          info.Picture,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		result, err := col.InsertOne(ctx, user)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := col.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&user); err != nil {
+			return nil, "", err
+		}
+		if err := createWallet(ctx, &user); err != nil {
+			return nil, "", err
+		}
+	} else if err != nil {
+		return nil, "", err
+	}
+
+	if user.IsSuspended {
+		return nil, "", ErrAccountSuspended
+	}
+
+	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), string(user.Role))
+	if err != nil {
+		return nil, "", err
+	}
+
+	return &user, accessToken, nil
 }
 
 // createWallet initialises a zero-balance wallet for a new user.

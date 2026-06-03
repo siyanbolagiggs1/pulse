@@ -3,11 +3,12 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
-	"github.com/pulse/api/internal/services/fraud"
 	"github.com/pulse/api/internal/services/scoring"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -15,10 +16,11 @@ import (
 )
 
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrAccountNotFound   = errors.New("social account not found")
-	ErrAccountAgeTooLow  = errors.New("account must be at least 30 days old to be eligible")
-	ErrDuplicatePlatform = errors.New("a social account for this platform is already connected")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrAccountNotFound        = errors.New("social account not found")
+	ErrAccountAgeTooLow       = errors.New("account must be at least 30 days old to be eligible")
+	ErrDuplicatePlatform      = errors.New("a social account for this platform is already connected")
+	ErrDuplicateSocialAccount = errors.New("this social account is already connected to another user")
 )
 
 func getMe(ctx context.Context, userID string) (*models.User, []models.SocialAccount, error) {
@@ -83,16 +85,14 @@ func updateProfile(ctx context.Context, userID string, req UpdateProfileRequest)
 }
 
 func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialAccountRequest) (*models.SocialAccount, error) {
-	if req.AccountAgeDays < 30 {
-		return nil, ErrAccountAgeTooLow
-	}
-
 	objID, err := bson.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
 
 	col := database.GetCollection(models.SocialAccountsCollection)
+
+	username := strings.ToLower(strings.TrimSpace(req.Username))
 
 	var existing models.SocialAccount
 	err = col.FindOne(ctx, bson.M{"userId": objID, "platform": req.Platform}).Decode(&existing)
@@ -103,33 +103,35 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 		return nil, err
 	}
 
+	// All platforms use admin review — Twitter auto-lookup requires paid API access.
+	if req.ProfileURL == "" {
+		return nil, fmt.Errorf("profile URL is required")
+	}
+
 	now := time.Now().UTC()
 	acc := models.SocialAccount{
 		UserID:         objID,
 		Platform:       req.Platform,
-		PlatformUserID: req.PlatformUserID,
-		Username:       req.Username,
+		Username:       username,
+		PlatformUserID: username,
 		ProfileURL:     req.ProfileURL,
-		FollowerCount:  req.FollowerCount,
-		FollowingCount: req.FollowingCount,
-		EngagementRate: req.EngagementRate,
-		AccountAge:     req.AccountAgeDays,
-		IsVerified:     req.IsVerified,
+		Status:         models.SocialAccountPending,
 		LastSyncedAt:   now,
 		CreatedAt:      now,
 	}
-	acc.InfluenceScore = scoring.ComputeFullScore(ctx, &acc, objID)
 
 	result, err := col.InsertOne(ctx, acc)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			errStr := err.Error()
+			if strings.Contains(errStr, "platform_username_unique") {
+				return nil, ErrDuplicateSocialAccount
+			}
+			return nil, ErrDuplicatePlatform
+		}
 		return nil, err
 	}
-
-	if err := col.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&acc); err != nil {
-		return nil, err
-	}
-
-	go fraud.CheckAccount(context.Background(), objID, &acc)
+	_ = col.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&acc)
 
 	return &acc, nil
 }

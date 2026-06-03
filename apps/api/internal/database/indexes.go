@@ -160,9 +160,15 @@ func createSocialAccountIndexes(ctx context.Context) {
 			Keys:    bson.D{{Key: "userId", Value: 1}},
 			Options: options.Index().SetName("user_id"),
 		},
+		// One platform per user
 		{
 			Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "platform", Value: 1}},
 			Options: options.Index().SetUnique(true).SetName("user_platform_unique"),
+		},
+		// One account (platform+username) across all users — usernames are stored lowercased
+		{
+			Keys:    bson.D{{Key: "platform", Value: 1}, {Key: "username", Value: 1}},
+			Options: options.Index().SetUnique(true).SetName("platform_username_unique"),
 		},
 	}
 	mustCreateIndexes(ctx, col, indexes, "social_accounts")
