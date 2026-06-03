@@ -18,3 +18,11 @@ export function formatNumber(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toString();
 }
+
+// Converts a server-relative upload path (e.g. /uploads/screenshots/x.jpg)
+// into a full URL pointing at the API host, not the Next.js host.
+export function apiFileUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
+  const origin = base.replace(/\/api\/?$/, "");
+  return `${origin}${path}`;
+}

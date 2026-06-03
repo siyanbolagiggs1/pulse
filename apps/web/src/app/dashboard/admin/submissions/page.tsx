@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, apiFileUrl } from "@/lib/utils";
 import { format } from "date-fns";
 import { Check, X } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
@@ -113,7 +113,7 @@ export default function AdminSubmissionsPage() {
                     </TableCell>
                     <TableCell>
                       {s.screenshotUrl && (
-                        <a href={s.screenshotUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">Screenshot</a>
+                        <a href={apiFileUrl(s.screenshotUrl)} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">Screenshot</a>
                       )}
                     </TableCell>
                     <TableCell>
