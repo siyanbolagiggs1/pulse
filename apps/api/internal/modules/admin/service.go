@@ -4,15 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v78"
-	stripetransfer "github.com/stripe/stripe-go/v78/transfer"
-
-	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
+	"github.com/pulse/api/internal/services/scoring"
 	"github.com/pulse/api/internal/modules/notifications"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -20,15 +16,9 @@ import (
 )
 
 var (
-	ErrNotFound          = errors.New("resource not found")
-	ErrNotReviewable     = errors.New("resource is not in a reviewable state")
-	ErrNoConnectAccount  = errors.New("promoter has no active Stripe Connect account")
-	ErrStripeNotConfigured = errors.New("payment processing is not configured")
+	ErrNotFound      = errors.New("resource not found")
+	ErrNotReviewable = errors.New("resource is not in a reviewable state")
 )
-
-func initStripe() {
-	stripe.Key = config.App.StripeSecretKey
-}
 
 // ── Platform stats ───────────────────────────────────────────
 
@@ -393,47 +383,17 @@ func approveWithdrawal(ctx context.Context, withdrawalID string) (*models.Withdr
 		return nil, ErrNotReviewable
 	}
 
-	// Fetch the promoter to get their Connect account.
-	var user models.User
-	if err := database.GetCollection(models.UsersCollection).
-		FindOne(ctx, bson.M{"_id": w.UserID}).Decode(&user); err != nil {
-		return nil, ErrNotFound
-	}
-	if user.StripeConnectAccountID == "" || user.StripeConnectStatus != "active" {
-		return nil, ErrNoConnectAccount
-	}
-
 	now := time.Now().UTC()
-	status := models.WithdrawalProcessing
-	stripePayoutID := ""
-
-	if config.App.StripeSecretKey != "" {
-		initStripe()
-		cents := int64(math.Round(w.NetAmount * 100))
-		transferParams := &stripe.TransferParams{
-			Amount:      stripe.Int64(cents),
-			Currency:    stripe.String("usd"),
-			Destination: stripe.String(user.StripeConnectAccountID),
-			Metadata:    map[string]string{"withdrawalId": w.ID.Hex()},
-		}
-		t, stripeErr := stripetransfer.New(transferParams)
-		if stripeErr != nil {
-			return nil, fmt.Errorf("stripe transfer failed: %w", stripeErr)
-		}
-		stripePayoutID = t.ID
-	}
 
 	_, _ = withdrawalCol.UpdateOne(ctx,
 		bson.M{"_id": wObjID},
 		bson.M{"$set": bson.M{
-			"status":         status,
-			"stripePayoutId": stripePayoutID,
-			"processedAt":    now,
+			"status":      models.WithdrawalProcessing,
+			"processedAt": now,
 		}},
 	)
 
-	w.Status = status
-	w.StripePayoutID = stripePayoutID
+	w.Status = models.WithdrawalProcessing
 	w.ProcessedAt = now
 
 	go notifications.Send(context.Background(), w.UserID, models.NotifWithdrawalProcessed,
@@ -504,4 +464,106 @@ func rejectWithdrawal(ctx context.Context, withdrawalID, reason string) (*models
 		map[string]interface{}{"withdrawalId": w.ID.Hex(), "amount": w.Amount, "reason": reason})
 
 	return &w, nil
+}
+
+// ── Social account review ────────────────────────────────────
+
+func listPendingSocialAccounts(ctx context.Context, page, limit int) ([]models.SocialAccount, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	col := database.GetCollection(models.SocialAccountsCollection)
+	filter := bson.M{"status": models.SocialAccountPending}
+
+	total, err := col.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	skip := int64((page - 1) * limit)
+	cursor, err := col.Find(ctx, filter,
+		options.Find().
+			SetSort(bson.D{{Key: "createdAt", Value: 1}}).
+			SetSkip(skip).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var accounts []models.SocialAccount
+	if err := cursor.All(ctx, &accounts); err != nil {
+		return nil, 0, err
+	}
+	return accounts, total, nil
+}
+
+func approveSocialAccount(ctx context.Context, accountID string, req ApproveSocialAccountRequest) (*models.SocialAccount, error) {
+	accObjID, err := bson.ObjectIDFromHex(accountID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+
+	col := database.GetCollection(models.SocialAccountsCollection)
+	var acc models.SocialAccount
+	if err := col.FindOne(ctx, bson.M{"_id": accObjID, "status": models.SocialAccountPending}).Decode(&acc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	acc.FollowerCount = req.FollowerCount
+	acc.FollowingCount = req.FollowingCount
+	acc.EngagementRate = req.EngagementRate
+	acc.AccountAge = req.AccountAgeDays
+	acc.Status = models.SocialAccountActive
+	acc.InfluenceScore = scoring.ComputeFullScore(ctx, &acc, acc.UserID)
+
+	now := time.Now().UTC()
+	_, err = col.UpdateOne(ctx,
+		bson.M{"_id": accObjID},
+		bson.M{"$set": bson.M{
+			"status":         models.SocialAccountActive,
+			"followerCount":  req.FollowerCount,
+			"followingCount": req.FollowingCount,
+			"engagementRate": req.EngagementRate,
+			"accountAgeDays": req.AccountAgeDays,
+			"influenceScore": acc.InfluenceScore,
+			"lastSyncedAt":   now,
+		}},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = col.FindOne(ctx, bson.M{"_id": accObjID}).Decode(&acc)
+	return &acc, nil
+}
+
+func rejectSocialAccount(ctx context.Context, accountID, reason string) error {
+	accObjID, err := bson.ObjectIDFromHex(accountID)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	result, err := database.GetCollection(models.SocialAccountsCollection).UpdateOne(ctx,
+		bson.M{"_id": accObjID, "status": models.SocialAccountPending},
+		bson.M{"$set": bson.M{
+			"status":         models.SocialAccountRejected,
+			"rejectedReason": reason,
+		}},
+	)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

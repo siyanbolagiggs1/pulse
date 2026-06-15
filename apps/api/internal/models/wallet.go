@@ -74,7 +74,7 @@ type Withdrawal struct {
 	Amount         float64          `bson:"amount"         json:"amount"`
 	Fee            float64          `bson:"fee"            json:"fee"`
 	NetAmount      float64          `bson:"netAmount"      json:"netAmount"`
-	StripePayoutID string           `bson:"stripePayoutId" json:"stripePayoutId,omitempty"`
+	PayoutID       string           `bson:"payoutId"       json:"payoutId,omitempty"`
 	Status         WithdrawalStatus `bson:"status"         json:"status"`
 	RequestedAt    time.Time        `bson:"requestedAt"    json:"requestedAt"`
 	ProcessedAt    time.Time        `bson:"processedAt"    json:"processedAt,omitempty"`

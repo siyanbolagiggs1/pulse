@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Megaphone, Store, FileText, Wallet,
-  Users, AlertTriangle, ArrowDownToLine, LogOut, UserCircle,
+  Users, AlertTriangle, ArrowDownToLine, LogOut, UserCircle, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
@@ -32,6 +32,7 @@ const adminNav: NavItem[] = [
   { label: "Submissions", href: "/dashboard/admin/submissions", icon: FileText },
   { label: "Fraud Flags", href: "/dashboard/admin/fraud-flags", icon: AlertTriangle },
   { label: "Withdrawals", href: "/dashboard/admin/withdrawals", icon: ArrowDownToLine },
+  { label: "Social Accounts", href: "/dashboard/admin/social-accounts", icon: ShieldCheck },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
 

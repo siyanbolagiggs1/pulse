@@ -7,24 +7,17 @@ import (
 
 func RegisterRoutes(rg *gin.RouterGroup) {
 	auth := middleware.RequireAuth()
-	bizOnly := middleware.RequireRole("business")
-	promoterOnly := middleware.RequireRole("promoter")
 
-	// Stripe webhook has no auth — Stripe verifies via signature instead.
+	// Paystack webhook — no auth, Paystack verifies via HMAC signature.
 	rg.POST("/wallet/topup/webhook", handleTopupWebhook)
 
 	w := rg.Group("/wallet", auth)
 	{
 		w.GET("", handleGetWallet)
 		w.GET("/transactions", handleGetTransactions)
-
-		// Business: top-up via Stripe Payment Intent.
-		w.POST("/topup", bizOnly, handleCreateTopup)
-
-		// Promoter: Stripe Connect onboarding + withdrawals.
-		w.POST("/connect", promoterOnly, handleCreateConnect)
-		w.GET("/connect/status", promoterOnly, handleGetConnectStatus)
-		w.POST("/withdraw", promoterOnly, handleWithdraw)
-		w.GET("/withdrawals", promoterOnly, handleGetWithdrawals)
+		w.POST("/topup", handleCreateTopup)
+		w.GET("/topup/verify", handleVerifyTopup)
+		w.POST("/withdraw", handleWithdraw)
+		w.GET("/withdrawals", handleGetWithdrawals)
 	}
 }

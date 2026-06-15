@@ -13,11 +13,13 @@ Businesses run repost campaigns. Promoters earn money sharing them.
 | 2 | Auth system | ✅ Complete |
 | 3 | Campaigns (business) | ✅ Complete |
 | 4 | Marketplace + submissions (promoter) | ✅ Complete |
-| 5 | Wallet + Stripe | ✅ Complete |
+| 5 | Wallet + Paystack | ✅ Complete |
 | 6 | Admin panel | ✅ Complete |
 | 7 | Influence scoring + fraud detection | ✅ Complete |
 | 8 | Real-time notifications (SSE) | ✅ Complete |
 | 9 | Frontend pages + dashboards | ✅ Complete |
+| 10 | Production deploy config (CI/CD, Fly.io, Vercel) | ✅ Complete |
+| 11 | Polish + missing UX (profile, social accounts, campaign edit, pagination, mobile nav) | ✅ Complete |
 
 ---
 
@@ -114,8 +116,9 @@ Open `apps/api/.env` and set real values for:
 |---|---|
 | `JWT_ACCESS_SECRET` | Any random 32+ char string |
 | `JWT_REFRESH_SECRET` | Any random 32+ char string (different from above) |
-| `STRIPE_SECRET_KEY` | Stripe Dashboard → Developers → API Keys |
-| `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard → Webhooks (after running stripe CLI) |
+| `PAYSTACK_SECRET_KEY` | Paystack Dashboard → Settings → API Keys |
+| `PAYSTACK_PUBLIC_KEY` | Paystack Dashboard → Settings → API Keys |
+| `PAYSTACK_CURRENCY` | e.g. `NGN`, `USD`, `GHS` |
 | `SMTP_USER` | Your Gmail address |
 | `SMTP_PASS` | Gmail → App Passwords (not your main password) |
 
@@ -123,9 +126,9 @@ Open `apps/web/.env.local` and set:
 
 | Variable | Where to get it |
 |---|---|
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe Dashboard → Developers → API Keys |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:5000/api` for local dev |
 
-> For local development, Stripe test keys (`sk_test_...` / `pk_test_...`) are fine.
+> For local development, Paystack test keys (`sk_test_...` / `pk_test_...`) are fine.
 
 ---
 
@@ -205,20 +208,21 @@ flyctl secrets set \
   REDIS_URL="rediss://..." \
   JWT_ACCESS_SECRET="$(openssl rand -hex 32)" \
   JWT_REFRESH_SECRET="$(openssl rand -hex 32)" \
-  STRIPE_SECRET_KEY="sk_live_..." \
-  STRIPE_WEBHOOK_SECRET="whsec_..." \
-  SMTP_HOST="smtp.sendgrid.net" \
+  PAYSTACK_SECRET_KEY="sk_live_..." \
+  PAYSTACK_PUBLIC_KEY="pk_live_..." \
+  PAYSTACK_CURRENCY="NGN" \
+  SMTP_HOST="smtp.gmail.com" \
   SMTP_PORT="587" \
-  SMTP_USER="apikey" \
-  SMTP_PASS="SG...." \
+  SMTP_USER="your@gmail.com" \
+  SMTP_PASS="your-app-password" \
   SMTP_FROM="noreply@pulse.app" \
-  CLIENT_URL="https://pulse.vercel.app"
+  CLIENT_URL="https://your-app.vercel.app"
 
 # Deploy
 flyctl deploy
 ```
 
-The API will be live at `https://pulse-api.fly.dev`.
+The API will be live at `https://pulse-api-siyan.fly.dev`.
 
 For file uploads, Fly.io creates a persistent volume (`pulse_uploads`) as defined in `fly.toml`.
 
@@ -232,14 +236,13 @@ cd apps/web
 vercel link
 
 # Set environment variables in Vercel dashboard:
-#   NEXT_PUBLIC_API_URL = https://pulse-api.fly.dev/api
-#   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = pk_live_...
+#   NEXT_PUBLIC_API_URL = https://pulse-api-siyan.fly.dev/api
 
 # Deploy to production
 vercel --prod
 ```
 
-Or just connect the GitHub repo in the Vercel dashboard (set "Root Directory" to `apps/web`) and every push to `main` deploys automatically.
+Or connect the GitHub repo in the Vercel dashboard (set "Root Directory" to `apps/web`) and every push to `main` deploys automatically.
 
 #### Automated CI/CD
 
@@ -278,7 +281,6 @@ cp apps/web/.env.example apps/web/.env.prod
 # Edit apps/web/.env.prod — set NEXT_PUBLIC_API_URL=https://your-domain.com/api
 
 # Generate a Redis password and add to .env.prod as REDIS_PASSWORD=...
-# Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_... to .env.prod
 
 # Start everything (Caddy handles HTTPS automatically)
 docker-compose -f docker-compose.prod.yml --env-file apps/api/.env.prod up -d --build
@@ -292,18 +294,22 @@ Caddy provisions a Let's Encrypt certificate automatically on first startup. The
 
 ---
 
-## Stripe Local Webhooks (required for wallet top-ups)
+## Paystack Local Webhooks (required for wallet top-ups)
 
-When testing Stripe payments locally you need the Stripe CLI to forward webhook events to your local API.
+When testing Paystack payments locally you need to expose your local API to the internet so Paystack can send webhook events to it.
 
 ```bash
-# Install Stripe CLI: https://stripe.com/docs/stripe-cli
+# Option A — ngrok (easiest)
+ngrok http 5000
 
-stripe login
-stripe listen --forward-to http://localhost:5000/api/wallet/topup/webhook
+# Copy the https URL it gives you, e.g. https://abc123.ngrok.io
+# In Paystack Dashboard → Settings → Webhooks, add:
+#   https://abc123.ngrok.io/api/wallet/topup/webhook
+
+# Option B — use Paystack's test mode
+# Paystack test mode payments trigger real webhook calls to your registered URL.
+# Just make sure PAYSTACK_SECRET_KEY is set to your test key (sk_test_...).
 ```
-
-Copy the `whsec_...` key it prints and paste it into `apps/api/.env` as `STRIPE_WEBHOOK_SECRET`.
 
 ---
 
@@ -321,7 +327,7 @@ pulse/
 │   │   │   ├── models/       MongoDB document structs
 │   │   │   ├── modules/      Feature modules (auth, campaigns, etc.)
 │   │   │   ├── router/       Gin router setup
-│   │   │   ├── services/     Influence scoring, fraud, email, payout
+│   │   │   ├── services/     Influence scoring, fraud, email, paystack
 │   │   │   └── utils/        Response helpers
 │   │   ├── Dockerfile
 │   │   └── .env.example
@@ -335,7 +341,7 @@ pulse/
 │       │   │       ├── campaigns/    Business campaign CRUD
 │       │   │       ├── marketplace/  Promoter campaign browse + apply
 │       │   │       ├── submissions/  Submission list (role-scoped)
-│       │   │       ├── wallet/       Balance, top-up, withdraw, Stripe Connect
+│       │   │       ├── wallet/       Balance, top-up, withdraw
 │       │   │       └── admin/        Stats, users, submissions, fraud, withdrawals
 │       │   ├── components/
 │       │   │   ├── layout/           Sidebar, header (with SSE notifications)
@@ -369,14 +375,15 @@ pulse/
 | `JWT_REFRESH_SECRET` | — | Secret for signing refresh tokens |
 | `JWT_ACCESS_EXPIRY_MINUTES` | `15` | Access token lifespan |
 | `JWT_REFRESH_EXPIRY_DAYS` | `7` | Refresh token lifespan |
-| `STRIPE_SECRET_KEY` | — | Stripe secret key |
-| `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook signing secret |
+| `PAYSTACK_SECRET_KEY` | — | Paystack secret key (`sk_test_...` or `sk_live_...`) |
+| `PAYSTACK_PUBLIC_KEY` | — | Paystack public key (`pk_test_...` or `pk_live_...`) |
+| `PAYSTACK_CURRENCY` | `NGN` | Transaction currency (NGN, USD, GHS, ZAR, KES) |
 | `SMTP_HOST` | `smtp.gmail.com` | SMTP server |
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USER` | — | SMTP login |
 | `SMTP_PASS` | — | SMTP password / app password |
 | `SMTP_FROM` | `noreply@pulse.app` | Sender email address |
-| `CLIENT_URL` | `http://localhost:3000` | Frontend URL (used in email links) |
+| `CLIENT_URL` | `http://localhost:3000` | Frontend URL (used in email links + CORS) |
 | `UPLOAD_DIR` | `./uploads` | Where proof screenshots are saved |
 | `PLATFORM_COMMISSION_RATE` | `0.20` | Platform cut (0.20 = 20%) |
 | `MONGO_ROOT_USER` | `admin` | MongoDB root user (Docker only) |
@@ -386,14 +393,13 @@ pulse/
 
 | Variable | Description |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | API base URL |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
+| `NEXT_PUBLIC_API_URL` | API base URL (e.g. `http://localhost:5000/api`) |
 
 ---
 
 ## API Endpoints
 
-### Auth (Phase 2)
+### Auth
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -406,12 +412,7 @@ pulse/
 | POST | `/api/auth/reset-password/:token` | — | Set new password |
 | GET | `/api/auth/me` | Bearer | Get current user |
 
-**Token flow:**
-- Access token (15 min) → returned in response body, stored in `sessionStorage`
-- Refresh token (7 days) → stored in `httpOnly` cookie, auto-used by axios interceptor
-- On logout or password reset → refresh token blacklisted in Redis
-
-### Users (Phase 3)
+### Users
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -421,7 +422,7 @@ pulse/
 | POST | `/api/users/social-accounts` | Bearer | Connect a social account (Instagram or Twitter) |
 | DELETE | `/api/users/social-accounts/:id` | Bearer | Remove a social account |
 
-### Campaigns (Phase 3)
+### Campaigns
 
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
@@ -432,7 +433,7 @@ pulse/
 | PATCH | `/api/campaigns/:id` | Bearer | business | Update campaign |
 | DELETE | `/api/campaigns/:id` | Bearer | business | Delete campaign (refunds remaining budget) |
 
-### Submissions (Phase 4)
+### Submissions
 
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
@@ -443,35 +444,34 @@ pulse/
 | POST | `/api/submissions/:id/approve` | Bearer | admin | Approve → credits promoter pending balance |
 | POST | `/api/submissions/:id/reject` | Bearer | admin | Reject with reason → adjusts trust score |
 
-### Wallet (Phase 5)
+### Wallet
 
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
 | GET | `/api/wallet` | Bearer | any | Balance + last 10 transactions (triggers 48h release) |
 | GET | `/api/wallet/transactions` | Bearer | any | Paginated transaction history |
-| POST | `/api/wallet/topup` | Bearer | business | Create Stripe Payment Intent → returns `clientSecret` |
-| POST | `/api/wallet/topup/webhook` | — | — | Stripe webhook: credits wallet on `payment_intent.succeeded` |
-| POST | `/api/wallet/connect` | Bearer | promoter | Start Stripe Connect Express onboarding → returns URL |
-| GET | `/api/wallet/connect/status` | Bearer | promoter | Sync + return Connect account status |
+| POST | `/api/wallet/topup` | Bearer | business | Initiate Paystack payment → returns `authorizationUrl` |
+| GET | `/api/wallet/topup/verify` | Bearer | any | Verify payment by reference after Paystack redirect |
+| POST | `/api/wallet/topup/webhook` | — | — | Paystack webhook: credits wallet on `charge.success` |
 | POST | `/api/wallet/withdraw` | Bearer | promoter | Request withdrawal (creates pending record) |
 | GET | `/api/wallet/withdrawals` | Bearer | promoter | Paginated withdrawal history |
 
-### Admin (Phase 6)
+### Admin
 
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
 | GET | `/api/admin/stats` | Bearer | admin | Platform stats (users, campaigns, submissions, financials) |
-| GET | `/api/admin/users` | Bearer | admin | List users with filters (role, suspended, search) |
+| GET | `/api/admin/users` | Bearer | admin | List users with filters |
 | GET | `/api/admin/users/:id` | Bearer | admin | Get single user |
 | POST | `/api/admin/users/:id/suspend` | Bearer | admin | Suspend user with reason |
 | POST | `/api/admin/users/:id/unsuspend` | Bearer | admin | Reinstate user (resets trust score to 50) |
-| GET | `/api/admin/fraud-flags` | Bearer | admin | List fraud flags with filters (userId, resolved) |
+| GET | `/api/admin/fraud-flags` | Bearer | admin | List fraud flags |
 | POST | `/api/admin/fraud-flags/:id/resolve` | Bearer | admin | Mark fraud flag resolved |
-| GET | `/api/admin/withdrawals` | Bearer | admin | List withdrawals with filters (userId, status) |
-| POST | `/api/admin/withdrawals/:id/approve` | Bearer | admin | Approve → fires Stripe Transfer to promoter |
+| GET | `/api/admin/withdrawals` | Bearer | admin | List withdrawals with filters |
+| POST | `/api/admin/withdrawals/:id/approve` | Bearer | admin | Approve withdrawal → admin processes payout manually |
 | POST | `/api/admin/withdrawals/:id/reject` | Bearer | admin | Reject → refunds balance to promoter wallet |
 
-### Notifications (Phase 8)
+### Notifications
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -509,20 +509,167 @@ Change the host port in `docker-compose.yml` (left side of `ports:` mapping).
 **MongoDB auth error**
 Make sure `MONGO_ROOT_USER` and `MONGO_ROOT_PASS` in your `.env` match what's in `docker-compose.yml`.
 
-**Stripe webhook not receiving events**
-Make sure `stripe listen` is running and `STRIPE_WEBHOOK_SECRET` is set to the `whsec_...` value it printed.
+**Paystack webhook not receiving events**
+Make sure your webhook URL is registered in the Paystack dashboard (Settings → Webhooks) and that `PAYSTACK_SECRET_KEY` is set correctly.
 
 **Emails not sending**
 For Gmail, you must use an [App Password](https://myaccount.google.com/apppasswords), not your main Gmail password. Enable 2FA first, then generate the app password and set it as `SMTP_PASS`.
 
 **CORS errors in production**
-Make sure `CLIENT_URL` in `apps/api/.env.prod` exactly matches the frontend origin (including scheme, no trailing slash): `https://pulse.app`. The API uses this value as the only allowed CORS origin.
+Make sure `CLIENT_URL` in `apps/api/.env.prod` exactly matches the frontend origin (including scheme, no trailing slash): `https://your-app.vercel.app`. The API uses this value as the only allowed CORS origin.
 
 **"Email already registered" on fresh database**
 MongoDB unique index on `users.email` is enforced. Drop the collection or use a different email.
 
 **Login returns "please verify your email"**
 Check your inbox (and spam) for the verification email. For local dev without real SMTP, temporarily set `isEmailVerified: true` directly in MongoDB using a GUI like MongoDB Compass.
+
+---
+
+## Going Live — Quick Start
+
+Everything below is free until you hit scale.
+
+### Services you need to sign up for
+
+| Service | Purpose | Cost |
+|---|---|---|
+| [fly.io](https://fly.io) | Host the Go API | Free (3 shared VMs) |
+| [vercel.com](https://vercel.com) | Host the Next.js frontend | Free (hobby tier) |
+| [MongoDB Atlas](https://cloud.mongodb.com) | Database | Free (512 MB cluster) |
+| [Upstash](https://upstash.com) | Redis | Free (10k req/day) |
+| [Paystack](https://paystack.com) | Payments | Free (% per transaction) |
+
+---
+
+### Step 1 — MongoDB Atlas
+
+1. Create a free **M0** cluster
+2. Create a database user with a password
+3. Under Network Access, add `0.0.0.0/0` (Fly.io uses dynamic IPs)
+4. Click **Connect → Drivers** and copy your connection string:
+   `mongodb+srv://user:pass@cluster.mongodb.net/pulse?retryWrites=true&w=majority`
+
+---
+
+### Step 2 — Upstash Redis
+
+1. Create a Redis database — pick the region closest to `iad` (US East)
+2. Copy the **Redis URL** — it looks like `rediss://default:password@host:port`
+
+---
+
+### Step 3 — Deploy the API to Fly.io
+
+Install the Fly CLI:
+
+```bash
+# Windows
+winget install flyctl
+
+# Mac
+brew install flyctl
+```
+
+Then run:
+
+```bash
+flyctl auth login
+cd apps/api
+flyctl launch --no-deploy
+```
+
+Set your secrets (replace all placeholder values):
+
+```bash
+flyctl secrets set \
+  MONGODB_URI="your-atlas-connection-string" \
+  REDIS_URL="your-upstash-redis-url" \
+  JWT_ACCESS_SECRET="any-random-32-char-string" \
+  JWT_REFRESH_SECRET="different-random-32-char-string" \
+  PAYSTACK_SECRET_KEY="sk_live_..." \
+  PAYSTACK_PUBLIC_KEY="pk_live_..." \
+  PAYSTACK_CURRENCY="NGN" \
+  SMTP_HOST="smtp.gmail.com" \
+  SMTP_PORT="587" \
+  SMTP_USER="your@gmail.com" \
+  SMTP_PASS="your-gmail-app-password" \
+  SMTP_FROM="noreply@yourdomain.com" \
+  CLIENT_URL="https://your-app.vercel.app" \
+  --app pulse-api-siyan
+```
+
+Deploy:
+
+```bash
+flyctl deploy --remote-only
+```
+
+Your API is live at `https://pulse-api-siyan.fly.dev`
+
+---
+
+### Step 4 — Deploy the frontend to Vercel
+
+```bash
+npm install -g vercel
+cd apps/web
+vercel
+```
+
+Follow the prompts. When asked for environment variables, add:
+
+```
+NEXT_PUBLIC_API_URL = https://pulse-api-siyan.fly.dev/api
+```
+
+Once Vercel gives you your URL (e.g. `https://pulse-xyz.vercel.app`), go back and update the API secret so CORS works:
+
+```bash
+flyctl secrets set CLIENT_URL="https://pulse-xyz.vercel.app" --app pulse-api-siyan
+```
+
+---
+
+### Step 5 — Set up Paystack webhook
+
+In your Paystack dashboard → **Settings → Webhooks**:
+
+- Add URL: `https://pulse-api-siyan.fly.dev/api/wallet/topup/webhook`
+- Events: `charge.success`
+
+---
+
+### Step 6 — Create your admin account
+
+1. Register an account on your live site
+2. In MongoDB Atlas → Browse Collections → `users`, find your document and set `role` to `"admin"`
+
+---
+
+### Step 7 — Wire up auto-deploy from GitHub (optional)
+
+Every push to `main` will automatically redeploy both apps.
+
+Add these secrets to your GitHub repo → **Settings → Secrets → Actions**:
+
+| Secret | How to get it |
+|---|---|
+| `FLY_API_TOKEN` | Run `flyctl tokens create deploy` |
+| `VERCEL_TOKEN` | Vercel dashboard → Account Settings → Tokens |
+| `VERCEL_ORG_ID` | Run `cat apps/web/.vercel/project.json` after `vercel link` |
+| `VERCEL_PROJECT_ID` | Same file as above |
+
+---
+
+### Gmail App Password (for email to work)
+
+Regular Gmail passwords don't work with SMTP. You need an App Password:
+
+1. Go to your Google account → **Security**
+2. Enable **2-Step Verification** if not already on
+3. Go to **App Passwords** → generate one for "Mail"
+4. Use that 16-character password as `SMTP_PASS`
 
 ---
 

@@ -65,7 +65,10 @@ export default function EditCampaignPage() {
   const onSubmit = async (data: FormData) => {
     setSaving(true);
     try {
-      await campaignsApi.update(id, data);
+      await campaignsApi.update(id, {
+        ...data,
+        endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+      });
       toast({ title: "Campaign updated" });
       router.push(`/dashboard/campaigns/${id}`);
     } catch (err: any) {

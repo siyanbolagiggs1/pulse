@@ -1,7 +1,7 @@
 // ── Shared enums ────────────────────────────────────────────
 
 export type Role = "admin" | "business" | "promoter";
-export type Platform = "instagram" | "twitter";
+export type Platform = "instagram" | "twitter" | "tiktok";
 export type CampaignStatus = "draft" | "active" | "paused" | "completed" | "cancelled";
 export type SubmissionStatus = "pending" | "approved" | "rejected";
 export type WithdrawalStatus = "pending" | "processing" | "completed" | "failed";
@@ -18,8 +18,6 @@ export interface User {
   isSuspended: boolean;
   trustScore: number;
   badges: string[];
-  stripeConnectAccountId?: string;
-  stripeConnectStatus?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +37,8 @@ export interface SocialAccount {
   accountAgeDays: number;
   influenceScore: number;
   isVerified: boolean;
+  status: "pending_review" | "active" | "rejected";
+  rejectedReason?: string;
   lastSyncedAt: string;
   createdAt: string;
 }
@@ -126,7 +126,7 @@ export interface Withdrawal {
   amount: number;
   fee: number;
   netAmount: number;
-  stripePayoutId?: string;
+  payoutId?: string;
   status: WithdrawalStatus;
   requestedAt: string;
   processedAt?: string;

@@ -167,6 +167,30 @@ func handleMe(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "", toUserResponse(user))
 }
 
+// POST /api/auth/google
+func handleGoogleSignIn(c *gin.Context) {
+	var req GoogleSignInRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithErrors(c, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	user, accessToken, err := googleSignIn(c.Request.Context(), req.Credential, req.Role)
+	if err != nil {
+		if errors.Is(err, ErrAccountSuspended) {
+			utils.Fail(c, http.StatusForbidden, err.Error())
+			return
+		}
+		utils.Fail(c, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "Signed in with Google", AuthResponse{
+		User:        toUserResponse(user),
+		AccessToken: accessToken,
+	})
+}
+
 // ── Cookie helpers ───────────────────────────────────────────
 
 func setRefreshCookie(c *gin.Context, token string) {

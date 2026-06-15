@@ -90,7 +90,7 @@ func createCampaign(ctx context.Context, businessID string, req CreateCampaignRe
 		MinInfluenceScore:   req.MinInfluenceScore,
 		MaxParticipants:     maxParticipants,
 		CurrentParticipants: 0,
-		Status:              models.CampaignStatusDraft,
+		Status:              models.CampaignStatusActive,
 		StartDate:           req.StartDate,
 		EndDate:             req.EndDate,
 		CreatedAt:           now,

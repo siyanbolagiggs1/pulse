@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { GoogleLogin } from "@react-oauth/google";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,16 @@ export default function RegisterPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      const res = await authApi.googleSignIn(credentialResponse.credential, role);
+      setAuth(res.data.data.user, res.data.data.accessToken);
+      router.push("/dashboard");
+    } catch (err: any) {
+      toast({ title: "Google sign-up failed", description: err?.response?.data?.message, variant: "destructive" });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -73,9 +84,7 @@ export default function RegisterPage() {
           <div className="space-y-1">
             <Label>I am a…</Label>
             <Select value={role} onValueChange={(v: "business" | "promoter") => { setRole(v); setValue("role", v); }}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="business">Business — run repost campaigns</SelectItem>
                 <SelectItem value="promoter">Promoter — earn by sharing content</SelectItem>
@@ -86,6 +95,35 @@ export default function RegisterPage() {
             {loading ? "Creating account…" : "Create account"}
           </Button>
         </form>
+
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">or sign up with Google as</span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Select value={role} onValueChange={(v: "business" | "promoter") => { setRole(v); setValue("role", v); }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="business">Business</SelectItem>
+              <SelectItem value="promoter">Promoter</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => toast({ title: "Google sign-up failed", variant: "destructive" })}
+              theme="filled_black"
+              shape="rectangular"
+              width="100%"
+            />
+          </div>
+        </div>
+
         <p className="mt-4 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link href="/login" className="text-primary hover:underline">Sign in</Link>

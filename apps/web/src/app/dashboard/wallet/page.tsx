@@ -32,9 +32,9 @@ export default function WalletPage() {
     if (user?.role === "promoter") p.push(walletApi.getWithdrawals());
     Promise.all(p)
       .then(([wr, wdr]) => {
-        setWallet(wr.data.data.wallet);
-        setTxs(wr.data.data.transactions);
-        if (wdr) setWithdrawals(wdr.data.data);
+        setWallet(wr.data.data);
+        setTxs(wr.data.data.recentTransactions ?? []);
+        if (wdr) setWithdrawals(wdr.data.data ?? []);
       })
       .catch(() => toast({ title: "Error loading wallet", variant: "destructive" }))
       .finally(() => setLoading(false));
@@ -44,12 +44,18 @@ export default function WalletPage() {
 
   const handleTopup = async () => {
     const amount = parseFloat(topupAmount);
-    if (!amount || amount < 10) return toast({ title: "Minimum top-up is $10", variant: "destructive" });
+    if (!amount || amount < 0.1) return toast({ title: "Minimum top-up is $0.10", variant: "destructive" });
     setProcessing(true);
     try {
       const res = await walletApi.createTopup(amount);
-      toast({ title: "Payment initiated", description: `ClientSecret: ${res.data.data.clientSecret.slice(0, 20)}… (integrate Stripe Elements)` });
-      setTopupOpen(false);
+      if (res.data.data.authorizationUrl) {
+        window.location.href = res.data.data.authorizationUrl;
+      } else {
+        // Dev mode — wallet credited directly.
+        toast({ title: "Wallet topped up", description: `${amount.toFixed(2)} added to your balance.` });
+        setTopupOpen(false);
+        load();
+      }
     } catch (err: any) {
       toast({ title: "Failed", description: err?.response?.data?.message, variant: "destructive" });
     } finally { setProcessing(false); }
@@ -57,7 +63,7 @@ export default function WalletPage() {
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
-    if (!amount || amount < 10) return toast({ title: "Minimum withdrawal is $10", variant: "destructive" });
+    if (!amount || amount < 0.1) return toast({ title: "Minimum withdrawal is $0.10", variant: "destructive" });
     setProcessing(true);
     try {
       await walletApi.withdraw(amount);
@@ -67,17 +73,6 @@ export default function WalletPage() {
     } catch (err: any) {
       toast({ title: "Failed", description: err?.response?.data?.message, variant: "destructive" });
     } finally { setProcessing(false); }
-  };
-
-  const handleConnect = async () => {
-    setProcessing(true);
-    try {
-      const res = await walletApi.createConnect();
-      window.location.href = res.data.data.url;
-    } catch (err: any) {
-      toast({ title: "Failed", description: err?.response?.data?.message, variant: "destructive" });
-      setProcessing(false);
-    }
   };
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-32" /><Skeleton className="h-64" /></div>;
@@ -105,18 +100,9 @@ export default function WalletPage() {
         {user?.role === "business" && (
           <Button onClick={() => setTopupOpen(true)}><ArrowUpFromLine className="mr-2 h-4 w-4" />Top Up</Button>
         )}
-        {user?.role === "promoter" && (
-          <>
-            <Button onClick={() => setWithdrawOpen(true)} disabled={!wallet || wallet.availableBalance < 10}>
-              <ArrowDownToLine className="mr-2 h-4 w-4" />Withdraw
-            </Button>
-            {(!user?.stripeConnectStatus || user.stripeConnectStatus !== "active") && (
-              <Button variant="outline" onClick={handleConnect} disabled={processing}>
-                <ExternalLink className="mr-2 h-4 w-4" />Connect Stripe
-              </Button>
-            )}
-          </>
-        )}
+        <Button onClick={() => setWithdrawOpen(true)} disabled={!wallet || wallet.availableBalance < 0.1}>
+          <ArrowDownToLine className="mr-2 h-4 w-4" />Withdraw
+        </Button>
       </div>
 
       {user?.role === "promoter" && withdrawals.length > 0 && (
@@ -162,11 +148,11 @@ export default function WalletPage() {
           <DialogHeader><DialogTitle>Top Up Wallet</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Amount (USD)</Label>
-            <Input type="number" min="10" placeholder="100" value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} />
+            <Input type="number" min="0.1" step="0.01" placeholder="1.00" value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTopupOpen(false)}>Cancel</Button>
-            <Button onClick={handleTopup} disabled={processing}>Pay with Stripe</Button>
+            <Button onClick={handleTopup} disabled={processing}>Pay with Paystack</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -176,8 +162,8 @@ export default function WalletPage() {
           <DialogHeader><DialogTitle>Request Withdrawal</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Available: {formatCurrency(wallet?.availableBalance ?? 0)}</p>
           <div className="space-y-2">
-            <Label>Amount (USD, min $10)</Label>
-            <Input type="number" min="10" max={wallet?.availableBalance} placeholder="50" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
+            <Label>Amount (USD, min $0.10)</Label>
+            <Input type="number" min="0.1" step="0.01" max={wallet?.availableBalance} placeholder="50" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWithdrawOpen(false)}>Cancel</Button>

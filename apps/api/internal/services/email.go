@@ -9,7 +9,7 @@ import (
 
 // SendVerificationEmail sends an email with a verification link.
 func SendVerificationEmail(toEmail, toName, token string) error {
-	link := fmt.Sprintf("%s/verify-email?token=%s", config.App.ClientURL, token)
+	link := fmt.Sprintf("%s/verify-email/%s", config.App.ClientURL, token)
 	subject := "Verify your Pulse account"
 	body := verificationEmailHTML(toName, link)
 	return sendEmail(toEmail, subject, body)
@@ -24,6 +24,13 @@ func SendPasswordResetEmail(toEmail, toName, token string) error {
 }
 
 func sendEmail(to, subject, htmlBody string) error {
+	// In dev mode with no SMTP credentials, skip sending and log instead.
+	if config.App.SMTPUser == "" || config.App.SMTPPass == "" ||
+		config.App.SMTPUser == "your@gmail.com" || config.App.SMTPPass == "your-app-password" {
+		fmt.Printf("\n[DEV EMAIL] To: %s | Subject: %s\n", to, subject)
+		return nil
+	}
+
 	m := gomail.NewMessage()
 	m.SetHeader("From", fmt.Sprintf("Pulse <%s>", config.App.SMTPFrom))
 	m.SetHeader("To", to)

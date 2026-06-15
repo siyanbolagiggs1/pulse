@@ -12,8 +12,23 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatNumber } from "@/lib/utils";
-import { Trash2, Plus, ExternalLink } from "lucide-react";
+import { Trash2, Plus, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+
+type Platform = "instagram" | "twitter" | "tiktok";
+
+const platformLabels: Record<Platform, string> = {
+  instagram: "Instagram",
+  twitter: "Twitter / X",
+  tiktok: "TikTok",
+};
+
+const statusBadge = (status: string) => {
+  if (status === "active") return <Badge variant="success">Verified</Badge>;
+  if (status === "pending_review") return <Badge variant="warning">Pending Review</Badge>;
+  if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>;
+  return null;
+};
 
 export default function ProfilePage() {
   const user = useAuthStore((s) => s.user);
@@ -28,15 +43,8 @@ export default function ProfilePage() {
 
   const [connectOpen, setConnectOpen] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [form, setForm] = useState({
-    platform: "instagram",
-    username: "",
-    profileUrl: "",
-    followerCount: "",
-    followingCount: "",
-    engagementRate: "",
-    accountAgeDays: "",
-  });
+  const [platform, setPlatform] = useState<Platform>("twitter");
+  const [profileUrl, setProfileUrl] = useState("");
 
   useEffect(() => {
     if (user?.role !== "promoter") return;
@@ -71,33 +79,31 @@ export default function ProfilePage() {
   };
 
   const handleConnect = async () => {
-    if (!form.username || !form.profileUrl || !form.followerCount) {
-      return toast({ title: "Please fill all required fields", variant: "destructive" });
-    }
+    if (!profileUrl.trim()) return toast({ title: "Profile URL is required", variant: "destructive" });
+
     setConnecting(true);
     try {
       const res = await usersApi.connectSocialAccount({
-        platform: form.platform,
-        username: form.username,
-        profileUrl: form.profileUrl,
-        followerCount: Number(form.followerCount),
-        followingCount: Number(form.followingCount) || 0,
-        engagementRate: Number(form.engagementRate) || 0,
-        accountAgeDays: Number(form.accountAgeDays) || 0,
+        platform,
+        profileUrl: profileUrl.trim(),
       });
       setAccounts((prev) => [...prev, res.data.data]);
       setConnectOpen(false);
-      setForm({ platform: "instagram", username: "", profileUrl: "", followerCount: "", followingCount: "", engagementRate: "", accountAgeDays: "" });
-      toast({ title: "Account connected" });
+      setProfileUrl("");
+
+      toast({
+        title: "Submitted for review",
+        description: "An admin will verify your account details within 24 hours.",
+      });
     } catch (err: any) {
       toast({ title: "Failed to connect", description: err?.response?.data?.message, variant: "destructive" });
     } finally { setConnecting(false); }
   };
 
-  const field = (key: keyof typeof form) => ({
-    value: form[key],
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
-  });
+  const resetDialog = () => {
+    setPlatform("twitter");
+    setProfileUrl("");
+  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -106,7 +112,6 @@ export default function ProfilePage() {
         <p className="text-muted-foreground">Manage your account details</p>
       </div>
 
-      {/* Account info */}
       <Card>
         <CardHeader><CardTitle>Account Details</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -150,15 +155,13 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Social accounts — promoters only */}
       {user?.role === "promoter" && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Social Accounts</CardTitle>
-              <Button size="sm" onClick={() => setConnectOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Connect
+              <Button size="sm" onClick={() => { resetDialog(); setConnectOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" />Connect
               </Button>
             </div>
           </CardHeader>
@@ -172,24 +175,27 @@ export default function ProfilePage() {
                 {accounts.map((a) => (
                   <div key={a.id} className="flex items-start justify-between rounded-lg border border-border p-3">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">@{a.username}</span>
                         <Badge variant="secondary" className="capitalize">{a.platform}</Badge>
-                        {a.isVerified && <Badge variant="success">Verified</Badge>}
+                        {statusBadge(a.status)}
                       </div>
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span>{formatNumber(a.followerCount)} followers</span>
-                        <span>{a.engagementRate.toFixed(1)}% engagement</span>
-                        <span>Score {a.influenceScore.toFixed(0)}</span>
-                      </div>
-                      <a
-                        href={a.profileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        View profile <ExternalLink className="h-3 w-3" />
-                      </a>
+                      {a.status === "active" && (
+                        <div className="flex gap-4 text-xs text-muted-foreground">
+                          <span>{formatNumber(a.followerCount)} followers</span>
+                          <span>{a.engagementRate.toFixed(1)}% engagement</span>
+                          <span>Score {a.influenceScore.toFixed(0)}</span>
+                        </div>
+                      )}
+                      {a.status === "rejected" && a.rejectedReason && (
+                        <p className="text-xs text-destructive">Reason: {a.rejectedReason}</p>
+                      )}
+                      {a.profileUrl && (
+                        <a href={a.profileUrl} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                          View profile <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
                     </div>
                     <Button
                       variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
@@ -206,69 +212,43 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {/* Stripe Connect status — promoters */}
-      {user?.role === "promoter" && user.stripeConnectStatus && (
-        <Card>
-          <CardHeader><CardTitle>Payout Account</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <Badge variant={user.stripeConnectStatus === "active" ? "success" : "warning"} className="capitalize">
-                {user.stripeConnectStatus}
-              </Badge>
-              <span className="text-sm text-muted-foreground">Stripe Connect account</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Connect account dialog */}
-      <Dialog open={connectOpen} onOpenChange={setConnectOpen}>
+      <Dialog open={connectOpen} onOpenChange={(o) => { setConnectOpen(o); if (!o) resetDialog(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Connect Social Account</DialogTitle></DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="space-y-1">
               <Label>Platform</Label>
-              <Select value={form.platform} onValueChange={(v) => setForm((f) => ({ ...f, platform: v }))}>
+              <Select value={platform} onValueChange={(v: Platform) => { setPlatform(v); setProfileUrl(""); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="instagram">Instagram</SelectItem>
                   <SelectItem value="twitter">Twitter / X</SelectItem>
+                  <SelectItem value="instagram">Instagram</SelectItem>
+                  <SelectItem value="tiktok">TikTok</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Username <span className="text-destructive">*</span></Label>
-                <Input placeholder="yourhandle" {...field("username")} />
-              </div>
-              <div className="space-y-1">
-                <Label>Account age (days) </Label>
-                <Input type="number" placeholder="365" {...field("accountAgeDays")} />
-              </div>
-            </div>
+
             <div className="space-y-1">
-              <Label>Profile URL <span className="text-destructive">*</span></Label>
-              <Input placeholder="https://instagram.com/yourhandle" {...field("profileUrl")} />
+              <Label>Profile URL</Label>
+              <Input
+                placeholder={
+                  platform === "instagram" ? "https://instagram.com/yourhandle" :
+                  platform === "twitter" ? "https://twitter.com/yourhandle" :
+                  "https://tiktok.com/@yourhandle"
+                }
+                value={profileUrl}
+                onChange={(e) => setProfileUrl(e.target.value)}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Followers <span className="text-destructive">*</span></Label>
-                <Input type="number" placeholder="10000" {...field("followerCount")} />
-              </div>
-              <div className="space-y-1">
-                <Label>Following</Label>
-                <Input type="number" placeholder="500" {...field("followingCount")} />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Engagement rate (%)</Label>
-              <Input type="number" placeholder="3.5" step="0.1" {...field("engagementRate")} />
+            <div className="rounded-md bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-400">
+              Your account requires admin verification. An admin will visit your profile and confirm your stats within 24 hours.
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setConnectOpen(false)}>Cancel</Button>
             <Button onClick={handleConnect} disabled={connecting}>
-              {connecting ? "Connecting…" : "Connect"}
+              {connecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting…</> : "Submit for Review"}
             </Button>
           </DialogFooter>
         </DialogContent>

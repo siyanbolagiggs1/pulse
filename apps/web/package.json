@@ -2,6 +2,11 @@
   "name": "pulse-web",
   "version": "0.1.0",
   "private": true,
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "postcss.config.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,9 +15,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "@ducanh2912/next-pwa": "^10.2.9",
+    "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-avatar": "^1.1.0",
     "@radix-ui/react-dialog": "^1.1.1",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
@@ -23,30 +27,34 @@
     "@radix-ui/react-tabs": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.1.2",
+    "@react-oauth/google": "^0.13.5",
+    "@stripe/react-stripe-js": "^2.8.0",
+    "@stripe/stripe-js": "^4.4.0",
+    "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
     "lucide-react": "^0.436.0",
+    "next": "14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.53.0",
     "recharts": "^2.12.7",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
-    "react-hook-form": "^7.53.0",
-    "@hookform/resolvers": "^3.9.0",
     "zod": "^3.23.8",
-    "axios": "^1.7.7",
-    "@stripe/stripe-js": "^4.4.0",
-    "@stripe/react-stripe-js": "^2.8.0",
-    "date-fns": "^3.6.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
     "@types/node": "^22.5.4",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
     "postcss": "^8.4.45",
     "tailwindcss": "^3.4.10",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.5"
-  }
+    "typescript": "^5.5.4"
+  },
+  "keywords": []
 }

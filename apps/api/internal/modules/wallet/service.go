@@ -7,31 +7,23 @@ import (
 	"math"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v78"
-	stripeaccount "github.com/stripe/stripe-go/v78/account"
-	stripeaccountlink "github.com/stripe/stripe-go/v78/accountlink"
-	stripepaymentintent "github.com/stripe/stripe-go/v78/paymentintent"
 	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
 	"github.com/pulse/api/internal/modules/notifications"
+	"github.com/pulse/api/internal/services/paystack"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var (
-	ErrWalletNotFound       = errors.New("wallet not found")
-	ErrInsufficientBalance  = errors.New("insufficient available balance")
-	ErrBelowMinimum         = errors.New("minimum withdrawal amount is $10.00")
-	ErrNoConnectAccount     = errors.New("Stripe Connect account not set up — complete onboarding first")
-	ErrConnectNotActive     = errors.New("Stripe Connect account is not yet active — complete onboarding")
-	ErrStripeNotConfigured  = errors.New("payment processing is not configured")
+	ErrWalletNotFound      = errors.New("wallet not found")
+	ErrInsufficientBalance = errors.New("insufficient available balance")
+	ErrBelowMinimum        = errors.New("minimum withdrawal amount is 0.10")
+	ErrPaystackNotConfigured = errors.New("payment processing is not configured — add PAYSTACK_SECRET_KEY")
+	ErrPaymentNotSuccessful  = errors.New("payment was not completed successfully")
 )
-
-func initStripe() {
-	stripe.Key = config.App.StripeSecretKey
-}
 
 // ── Wallet read ──────────────────────────────────────────────
 
@@ -41,7 +33,6 @@ func getWallet(ctx context.Context, userID string) (*models.Wallet, []models.Tra
 		return nil, nil, ErrWalletNotFound
 	}
 
-	// Release any matured pending payouts before returning balance.
 	_ = releaseMaturePending(ctx, objID)
 
 	var w models.Wallet
@@ -111,41 +102,78 @@ func getTransactions(ctx context.Context, userID string, page, limit int) ([]mod
 	return txs, total, nil
 }
 
-// ── Top-up (business) ────────────────────────────────────────
+// ── Top-up ───────────────────────────────────────────────────
 
 func createTopup(ctx context.Context, userID string, amount float64) (*TopupResponse, error) {
-	if config.App.StripeSecretKey == "" {
-		return nil, ErrStripeNotConfigured
+	// Dev mode: no Paystack key — credit wallet directly.
+	if config.App.PaystackSecretKey == "" {
+		if err := creditWallet(ctx, userID, amount, "dev_topup"); err != nil {
+			return nil, err
+		}
+		return &TopupResponse{Amount: amount}, nil
 	}
-	initStripe()
 
-	cents := int64(math.Round(amount * 100))
-	params := &stripe.PaymentIntentParams{
-		Amount:   stripe.Int64(cents),
-		Currency: stripe.String("usd"),
-		Metadata: map[string]string{
+	// Look up user email for Paystack.
+	objID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, ErrWalletNotFound
+	}
+	var user models.User
+	if err := database.GetCollection(models.UsersCollection).
+		FindOne(ctx, bson.M{"_id": objID}).Decode(&user); err != nil {
+		return nil, ErrWalletNotFound
+	}
+
+	// Paystack amount is in smallest unit (kobo for NGN, cents for USD).
+	smallestUnit := int64(math.Round(amount * 100))
+	ref := fmt.Sprintf("pulse_%s_%d", userID[len(userID)-6:], time.Now().UnixNano())
+
+	data, err := paystack.Initialize(config.App.PaystackSecretKey, paystack.InitRequest{
+		Email:       user.Email,
+		Amount:      smallestUnit,
+		Reference:   ref,
+		Currency:    config.App.PaystackCurrency,
+		CallbackURL: config.App.ClientURL + "/dashboard/wallet/topup/callback",
+		Metadata: map[string]any{
 			"userID": userID,
 			"type":   "wallet_topup",
 		},
-		AutomaticPaymentMethods: &stripe.PaymentIntentAutomaticPaymentMethodsParams{
-			Enabled: stripe.Bool(true),
-		},
-	}
-
-	pi, err := stripepaymentintent.New(params)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("stripe: %w", err)
+		return nil, fmt.Errorf("paystack: %w", err)
 	}
 
 	return &TopupResponse{
-		ClientSecret:    pi.ClientSecret,
-		PaymentIntentID: pi.ID,
-		Amount:          amount,
+		AuthorizationURL: data.AuthorizationURL,
+		Reference:        data.Reference,
+		Amount:           amount,
 	}, nil
 }
 
-// creditWallet is called from the webhook when Stripe confirms payment.
-func creditWallet(ctx context.Context, userID string, amount float64, stripePaymentIntentID string) error {
+func verifyTopup(ctx context.Context, reference string) error {
+	if config.App.PaystackSecretKey == "" {
+		return ErrPaystackNotConfigured
+	}
+
+	data, err := paystack.Verify(config.App.PaystackSecretKey, reference)
+	if err != nil {
+		return fmt.Errorf("paystack: %w", err)
+	}
+	if data.Status != "success" {
+		return ErrPaymentNotSuccessful
+	}
+
+	userID, _ := data.Metadata["userID"].(string)
+	if userID == "" {
+		return errors.New("missing userID in payment metadata")
+	}
+
+	amount := float64(data.Amount) / 100.0
+	return creditWallet(ctx, userID, amount, reference)
+}
+
+// creditWallet adds funds to a user's available balance and records the transaction.
+func creditWallet(ctx context.Context, userID string, amount float64, reference string) error {
 	objID, err := bson.ObjectIDFromHex(userID)
 	if err != nil {
 		return ErrWalletNotFound
@@ -176,24 +204,24 @@ func creditWallet(ctx context.Context, userID string, amount float64, stripePaym
 		Type:         models.TxTopup,
 		Amount:       amount,
 		BalanceAfter: w.AvailableBalance + amount,
-		ReferenceID:  stripePaymentIntentID,
-		Description:  fmt.Sprintf("Wallet top-up via Stripe (%.2f USD)", amount),
+		ReferenceID:  reference,
+		Description:  fmt.Sprintf("Wallet top-up (%.2f %s)", amount, config.App.PaystackCurrency),
 		CreatedAt:    now,
 	}
 	_, _ = database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx)
 
 	go notifications.Send(context.Background(), objID, models.NotifWalletTopup,
 		"Wallet Topped Up",
-		fmt.Sprintf("%.2f USD has been added to your wallet.", amount),
-		map[string]interface{}{"amount": amount, "paymentIntentId": stripePaymentIntentID})
+		fmt.Sprintf("%.2f %s has been added to your wallet.", amount, config.App.PaystackCurrency),
+		map[string]any{"amount": amount, "reference": reference})
 
 	return nil
 }
 
-// ── Withdrawal (promoter) ────────────────────────────────────
+// ── Withdrawal ───────────────────────────────────────────────
 
 func requestWithdrawal(ctx context.Context, userID string, amount float64) (*models.Withdrawal, error) {
-	if amount < 10 {
+	if amount < 0.1 {
 		return nil, ErrBelowMinimum
 	}
 
@@ -202,20 +230,6 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 		return nil, ErrWalletNotFound
 	}
 
-	// Fetch user to get Stripe Connect account.
-	var user models.User
-	if err := database.GetCollection(models.UsersCollection).
-		FindOne(ctx, bson.M{"_id": objID}).Decode(&user); err != nil {
-		return nil, ErrWalletNotFound
-	}
-	if user.StripeConnectAccountID == "" {
-		return nil, ErrNoConnectAccount
-	}
-	if user.StripeConnectStatus != "active" {
-		return nil, ErrConnectNotActive
-	}
-
-	// Check balance.
 	walletCol := database.GetCollection(models.WalletsCollection)
 	var w models.Wallet
 	if err := walletCol.FindOne(ctx, bson.M{"userId": objID}).Decode(&w); err != nil {
@@ -227,7 +241,6 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 
 	now := time.Now().UTC()
 
-	// Deduct from available balance immediately.
 	_, err = walletCol.UpdateOne(ctx,
 		bson.M{"userId": objID},
 		bson.M{
@@ -239,7 +252,6 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 		return nil, err
 	}
 
-	// Create withdrawal record.
 	withdrawal := &models.Withdrawal{
 		UserID:      objID,
 		Amount:      amount,
@@ -251,13 +263,11 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 	}
 	result, err := database.GetCollection(models.WithdrawalsCollection).InsertOne(ctx, withdrawal)
 	if err != nil {
-		// Rollback balance.
 		_, _ = walletCol.UpdateOne(ctx, bson.M{"userId": objID},
 			bson.M{"$inc": bson.M{"availableBalance": amount}, "$set": bson.M{"updatedAt": now}})
 		return nil, err
 	}
 
-	// Record transaction.
 	tx := models.Transaction{
 		WalletID:     w.ID,
 		UserID:       objID,
@@ -265,12 +275,11 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 		Amount:       amount,
 		BalanceAfter: w.AvailableBalance - amount,
 		ReferenceID:  result.InsertedID.(bson.ObjectID).Hex(),
-		Description:  fmt.Sprintf("Withdrawal request (%.2f USD)", amount),
+		Description:  fmt.Sprintf("Withdrawal request (%.2f %s)", amount, config.App.PaystackCurrency),
 		CreatedAt:    now,
 	}
 	_, _ = database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx)
 
-	// Re-fetch to get assigned ID.
 	_ = database.GetCollection(models.WithdrawalsCollection).
 		FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(withdrawal)
 
@@ -318,131 +327,15 @@ func getWithdrawals(ctx context.Context, userID string, page, limit int) ([]mode
 	return withdrawals, total, nil
 }
 
-// ── Stripe Connect ───────────────────────────────────────────
-
-func createConnectAccount(ctx context.Context, userID string) (*ConnectOnboardingResponse, error) {
-	if config.App.StripeSecretKey == "" {
-		return nil, ErrStripeNotConfigured
-	}
-	initStripe()
-
-	objID, err := bson.ObjectIDFromHex(userID)
-	if err != nil {
-		return nil, ErrWalletNotFound
-	}
-
-	var user models.User
-	if err := database.GetCollection(models.UsersCollection).
-		FindOne(ctx, bson.M{"_id": objID}).Decode(&user); err != nil {
-		return nil, ErrWalletNotFound
-	}
-
-	connectAccountID := user.StripeConnectAccountID
-
-	// Create a new Connect account if one doesn't exist yet.
-	if connectAccountID == "" {
-		acctParams := &stripe.AccountParams{
-			Type:  stripe.String("express"),
-			Email: stripe.String(user.Email),
-			Capabilities: &stripe.AccountCapabilitiesParams{
-				Transfers: &stripe.AccountCapabilitiesTransfersParams{
-					Requested: stripe.Bool(true),
-				},
-			},
-		}
-		acct, err := stripeaccount.New(acctParams)
-		if err != nil {
-			return nil, fmt.Errorf("stripe: %w", err)
-		}
-		connectAccountID = acct.ID
-
-		_, _ = database.GetCollection(models.UsersCollection).UpdateOne(ctx,
-			bson.M{"_id": objID},
-			bson.M{"$set": bson.M{
-				"stripeConnectAccountId": connectAccountID,
-				"stripeConnectStatus":    "pending",
-				"updatedAt":              time.Now().UTC(),
-			}},
-		)
-	}
-
-	// Generate onboarding link.
-	linkParams := &stripe.AccountLinkParams{
-		Account:    stripe.String(connectAccountID),
-		RefreshURL: stripe.String(config.App.ClientURL + "/dashboard/wallet/connect/refresh"),
-		ReturnURL:  stripe.String(config.App.ClientURL + "/dashboard/wallet/connect/complete"),
-		Type:       stripe.String("account_onboarding"),
-	}
-	link, err := stripeaccountlink.New(linkParams)
-	if err != nil {
-		return nil, fmt.Errorf("stripe: %w", err)
-	}
-
-	return &ConnectOnboardingResponse{
-		URL:              link.URL,
-		ConnectAccountID: connectAccountID,
-	}, nil
-}
-
-func getConnectStatus(ctx context.Context, userID string) (*ConnectStatusResponse, error) {
-	if config.App.StripeSecretKey == "" {
-		return nil, ErrStripeNotConfigured
-	}
-	initStripe()
-
-	objID, err := bson.ObjectIDFromHex(userID)
-	if err != nil {
-		return nil, ErrWalletNotFound
-	}
-
-	var user models.User
-	if err := database.GetCollection(models.UsersCollection).
-		FindOne(ctx, bson.M{"_id": objID}).Decode(&user); err != nil {
-		return nil, ErrWalletNotFound
-	}
-	if user.StripeConnectAccountID == "" {
-		return nil, ErrNoConnectAccount
-	}
-
-	acct, err := stripeaccount.GetByID(user.StripeConnectAccountID, nil)
-	if err != nil {
-		return nil, fmt.Errorf("stripe: %w", err)
-	}
-
-	status := "pending"
-	if acct.ChargesEnabled && acct.PayoutsEnabled {
-		status = "active"
-	} else if len(acct.Requirements.Errors) > 0 {
-		status = "restricted"
-	}
-
-	// Sync status to DB.
-	if user.StripeConnectStatus != status {
-		_, _ = database.GetCollection(models.UsersCollection).UpdateOne(ctx,
-			bson.M{"_id": objID},
-			bson.M{"$set": bson.M{"stripeConnectStatus": status, "updatedAt": time.Now().UTC()}},
-		)
-	}
-
-	return &ConnectStatusResponse{
-		AccountID:      acct.ID,
-		ChargesEnabled: acct.ChargesEnabled,
-		PayoutsEnabled: acct.PayoutsEnabled,
-		Status:         status,
-	}, nil
-}
-
 // ── 48h payout release ───────────────────────────────────────
 
-// releaseMaturePending moves promoter earnings from pending to available
-// once the 48h hold window has passed.
 func releaseMaturePending(ctx context.Context, promoterObjID bson.ObjectID) error {
 	now := time.Now().UTC()
 
 	cursor, err := database.GetCollection(models.SubmissionsCollection).Find(ctx, bson.M{
-		"promoterId":     promoterObjID,
-		"status":         models.SubmissionStatusApproved,
-		"payoutReleased": false,
+		"promoterId":       promoterObjID,
+		"status":           models.SubmissionStatusApproved,
+		"payoutReleased":   false,
 		"payoutReleasedAt": bson.M{"$lte": now},
 	})
 	if err != nil {
@@ -469,7 +362,6 @@ func releaseMaturePending(ctx context.Context, promoterObjID bson.ObjectID) erro
 		return err
 	}
 
-	// Move from pending to available.
 	_, err = walletCol.UpdateOne(ctx,
 		bson.M{"userId": promoterObjID},
 		bson.M{
@@ -485,7 +377,6 @@ func releaseMaturePending(ctx context.Context, promoterObjID bson.ObjectID) erro
 		return err
 	}
 
-	// Mark each submission as released.
 	ids := make([]bson.ObjectID, len(matured))
 	for i, sub := range matured {
 		ids[i] = sub.ID
@@ -495,14 +386,13 @@ func releaseMaturePending(ctx context.Context, promoterObjID bson.ObjectID) erro
 		bson.M{"$set": bson.M{"payoutReleased": true, "updatedAt": now}},
 	)
 
-	// Record a single release transaction.
 	tx := models.Transaction{
 		WalletID:     w.ID,
 		UserID:       promoterObjID,
 		Type:         models.TxPayoutReleased,
 		Amount:       totalRelease,
 		BalanceAfter: w.AvailableBalance + totalRelease,
-		Description:  fmt.Sprintf("%.2f USD released from 48h hold (%d payout(s))", totalRelease, len(matured)),
+		Description:  fmt.Sprintf("%.2f %s released from 48h hold (%d payout(s))", totalRelease, config.App.PaystackCurrency, len(matured)),
 		CreatedAt:    now,
 	}
 	_, _ = database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx)

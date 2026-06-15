@@ -24,4 +24,8 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	a.GET("/withdrawals", handleListWithdrawals)
 	a.POST("/withdrawals/:id/approve", handleApproveWithdrawal)
 	a.POST("/withdrawals/:id/reject", handleRejectWithdrawal)
+
+	a.GET("/social-accounts", handleListPendingSocialAccounts)
+	a.POST("/social-accounts/:id/approve", handleApproveSocialAccount)
+	a.POST("/social-accounts/:id/reject", handleRejectSocialAccount)
 }

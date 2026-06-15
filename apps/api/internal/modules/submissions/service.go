@@ -466,6 +466,9 @@ func saveScreenshot(file multipart.File, header *multipart.FileHeader) (string, 
 // ── Helpers ──────────────────────────────────────────────────
 
 func checkRateLimit(ctx context.Context, promoterID string) error {
+	if database.Redis == nil {
+		return nil // rate limiting disabled when Redis unavailable
+	}
 	key := fmt.Sprintf("rate:submissions:%s", promoterID)
 	count, err := database.Redis.Incr(ctx, key).Result()
 	if err != nil {

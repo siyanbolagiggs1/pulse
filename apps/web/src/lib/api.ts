@@ -25,6 +25,8 @@ export const authApi = {
   logout: () => api.post("/auth/logout"),
   me: () => api.get<{ success: boolean; data: User }>("/auth/me"),
   verifyEmail: (token: string) => api.get(`/auth/verify-email/${token}`),
+  googleSignIn: (credential: string, role?: string) =>
+    api.post<{ success: boolean; data: { user: User; accessToken: string } }>("/auth/google", { credential, role }),
   forgotPassword: (email: string) => api.post("/auth/forgot-password", { email }),
   resetPassword: (token: string, password: string) =>
     api.post(`/auth/reset-password/${token}`, { password }),
@@ -73,18 +75,16 @@ export const submissionsApi = {
 // ── Wallet ───────────────────────────────────────────────────
 
 export const walletApi = {
-  get: () => api.get<{ success: boolean; data: { wallet: Wallet; transactions: Transaction[] } }>("/wallet"),
+  get: () => api.get<{ success: boolean; data: Wallet & { recentTransactions: Transaction[] } }>("/wallet"),
+  verifyTopup: (reference: string) => api.get("/wallet/topup/verify", { params: { reference } }),
   getTransactions: (params?: object) =>
     api.get<{ success: boolean; data: Transaction[]; meta: Meta }>("/wallet/transactions", { params }),
   createTopup: (amount: number) =>
-    api.post<{ success: boolean; data: { clientSecret: string; paymentIntentId: string; amount: number } }>("/wallet/topup", { amount }),
+    api.post<{ success: boolean; data: { authorizationUrl: string; reference: string; amount: number } }>("/wallet/topup", { amount }),
   withdraw: (amount: number) =>
     api.post<{ success: boolean; data: Withdrawal }>("/wallet/withdraw", { amount }),
   getWithdrawals: (params?: object) =>
     api.get<{ success: boolean; data: Withdrawal[]; meta: Meta }>("/wallet/withdrawals", { params }),
-  createConnect: () =>
-    api.post<{ success: boolean; data: { url: string; connectAccountId: string } }>("/wallet/connect"),
-  getConnectStatus: () => api.get("/wallet/connect/status"),
 };
 
 // ── Admin ────────────────────────────────────────────────────
@@ -103,6 +103,11 @@ export const adminApi = {
   rejectWithdrawal: (id: string, reason?: string) => api.post(`/admin/withdrawals/${id}/reject`, { reason }),
   listSubmissions: (params?: object) =>
     api.get<{ success: boolean; data: CampaignSubmission[]; meta: Meta }>("/submissions", { params }),
+  listPendingSocialAccounts: (params?: object) => api.get("/admin/social-accounts", { params }),
+  approveSocialAccount: (id: string, stats: { followerCount: number; followingCount: number; engagementRate: number; accountAgeDays: number }) =>
+    api.post(`/admin/social-accounts/${id}/approve`, stats),
+  rejectSocialAccount: (id: string, reason: string) =>
+    api.post(`/admin/social-accounts/${id}/reject`, { reason }),
 };
 
 // ── Notifications ────────────────────────────────────────────

@@ -13,6 +13,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		auth.POST("/login",            handleLogin)
 		auth.POST("/logout",           handleLogout)
 		auth.POST("/refresh",          handleRefresh)
+		auth.POST("/google",             handleGoogleSignIn)
 		auth.GET("/verify-email/:token", handleVerifyEmail)
 		auth.POST("/forgot-password",  handleForgotPassword)
 		auth.POST("/reset-password/:token", handleResetPassword)

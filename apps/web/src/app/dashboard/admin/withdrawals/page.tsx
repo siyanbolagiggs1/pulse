@@ -17,7 +17,7 @@ interface Withdrawal {
   userId: string;
   amount: number;
   status: string;
-  stripePayoutId?: string;
+  payoutId?: string;
   requestedAt: string;
   processedAt?: string;
 }
@@ -48,7 +48,7 @@ export default function AdminWithdrawalsPage() {
     setActing(id);
     try {
       await adminApi.approveWithdrawal(id);
-      toast({ title: "Withdrawal approved", description: "Stripe Transfer initiated." });
+      toast({ title: "Withdrawal approved", description: "Payout will be processed." });
       setWithdrawals((prev) => prev.filter((w) => w.id !== id));
     } catch (err: any) {
       toast({ title: "Approval failed", description: err?.response?.data?.message, variant: "destructive" });
@@ -109,7 +109,7 @@ export default function AdminWithdrawalsPage() {
                     <TableCell><Badge variant={statusVariant[w.status] ?? "secondary"}>{w.status}</Badge></TableCell>
                     <TableCell className="font-medium">{formatCurrency(w.amount)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">{w.userId}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{w.stripePayoutId || "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{w.payoutId || "—"}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{format(new Date(w.requestedAt), "MMM d, yyyy")}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {w.processedAt && new Date(w.processedAt).getFullYear() > 1 ? format(new Date(w.processedAt), "MMM d, yyyy") : "—"}

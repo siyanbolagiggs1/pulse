@@ -21,10 +21,11 @@ primary_region = "iad"
 #   REDIS_URL
 #   JWT_ACCESS_SECRET
 #   JWT_REFRESH_SECRET
-#   STRIPE_SECRET_KEY
-#   STRIPE_WEBHOOK_SECRET
+#   PAYSTACK_SECRET_KEY
+#   PAYSTACK_PUBLIC_KEY
+#   PAYSTACK_CURRENCY   (e.g. NGN)
 #   SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM
-#   CLIENT_URL  (e.g. https://pulse.vercel.app)
+#   CLIENT_URL  (e.g. https://your-app.vercel.app)
 
 [http_service]
   internal_port = 5000

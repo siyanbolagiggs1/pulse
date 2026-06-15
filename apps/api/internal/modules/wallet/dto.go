@@ -9,11 +9,11 @@ import (
 // ── Requests ─────────────────────────────────────────────────
 
 type TopupRequest struct {
-	Amount float64 `json:"amount" binding:"required,min=5"`
+	Amount float64 `json:"amount" binding:"required"`
 }
 
 type WithdrawRequest struct {
-	Amount float64 `json:"amount" binding:"required,min=10"`
+	Amount float64 `json:"amount" binding:"required"`
 }
 
 // ── Responses ────────────────────────────────────────────────
@@ -42,9 +42,9 @@ type TxResponse struct {
 }
 
 type TopupResponse struct {
-	ClientSecret    string  `json:"clientSecret"`
-	PaymentIntentID string  `json:"paymentIntentId"`
-	Amount          float64 `json:"amount"`
+	AuthorizationURL string  `json:"authorizationUrl,omitempty"`
+	Reference        string  `json:"reference,omitempty"`
+	Amount           float64 `json:"amount"`
 }
 
 type WithdrawalResponse struct {
@@ -53,22 +53,11 @@ type WithdrawalResponse struct {
 	Fee            float64                 `json:"fee"`
 	NetAmount      float64                 `json:"netAmount"`
 	Status         models.WithdrawalStatus `json:"status"`
-	StripePayoutID string                  `json:"stripePayoutId,omitempty"`
+	PayoutID       string                  `json:"payoutId,omitempty"`
 	RequestedAt    time.Time               `json:"requestedAt"`
 	ProcessedAt    time.Time               `json:"processedAt,omitempty"`
 }
 
-type ConnectOnboardingResponse struct {
-	URL               string `json:"url"`
-	ConnectAccountID  string `json:"connectAccountId"`
-}
-
-type ConnectStatusResponse struct {
-	AccountID       string `json:"accountId"`
-	ChargesEnabled  bool   `json:"chargesEnabled"`
-	PayoutsEnabled  bool   `json:"payoutsEnabled"`
-	Status          string `json:"status"` // pending | active | restricted
-}
 
 type TransactionListMeta struct {
 	Total int64 `json:"total"`
@@ -99,7 +88,7 @@ func toWithdrawalResponse(w *models.Withdrawal) WithdrawalResponse {
 		Fee:            w.Fee,
 		NetAmount:      w.NetAmount,
 		Status:         w.Status,
-		StripePayoutID: w.StripePayoutID,
+		PayoutID:       w.PayoutID,
 		RequestedAt:    w.RequestedAt,
 		ProcessedAt:    w.ProcessedAt,
 	}

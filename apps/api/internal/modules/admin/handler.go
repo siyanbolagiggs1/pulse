@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
@@ -195,11 +196,7 @@ func handleApproveWithdrawal(c *gin.Context) {
 			utils.Fail(c, http.StatusNotFound, "Withdrawal not found")
 		case errors.Is(err, ErrNotReviewable):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrNoConnectAccount):
-			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrStripeNotConfigured):
-			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
-		default:
+default:
 			utils.Fail(c, http.StatusInternalServerError, "Failed to approve withdrawal")
 		}
 		return
@@ -230,4 +227,73 @@ func handleRejectWithdrawal(c *gin.Context) {
 	}
 
 	utils.OK(c, http.StatusOK, "Withdrawal rejected and balance refunded", toWithdrawalAdminResponse(w))
+}
+
+// GET /api/admin/social-accounts
+func handleListPendingSocialAccounts(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	accounts, total, err := listPendingSocialAccounts(c.Request.Context(), page, limit)
+	if err != nil {
+		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch pending accounts")
+		return
+	}
+
+	resp := make([]PendingSocialAccountResponse, 0, len(accounts))
+	for _, a := range accounts {
+		resp = append(resp, PendingSocialAccountResponse{
+			ID:         a.ID.Hex(),
+			UserID:     a.UserID.Hex(),
+			Platform:   a.Platform,
+			Username:   a.Username,
+			ProfileURL: a.ProfileURL,
+			CreatedAt:  a.CreatedAt,
+		})
+	}
+
+	utils.OKWithMeta(c, http.StatusOK, "", resp, map[string]any{
+		"total": total, "page": page, "limit": limit,
+	})
+}
+
+// POST /api/admin/social-accounts/:id/approve
+func handleApproveSocialAccount(c *gin.Context) {
+	var req ApproveSocialAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithErrors(c, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	acc, err := approveSocialAccount(c.Request.Context(), c.Param("id"), req)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			utils.Fail(c, http.StatusNotFound, "Account not found or not pending review")
+			return
+		}
+		utils.Fail(c, http.StatusInternalServerError, "Failed to approve account")
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "Account approved", acc)
+}
+
+// POST /api/admin/social-accounts/:id/reject
+func handleRejectSocialAccount(c *gin.Context) {
+	var req RejectSocialAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithErrors(c, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	if err := rejectSocialAccount(c.Request.Context(), c.Param("id"), req.Reason); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			utils.Fail(c, http.StatusNotFound, "Account not found or not pending review")
+			return
+		}
+		utils.Fail(c, http.StatusInternalServerError, "Failed to reject account")
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "Account rejected", nil)
 }

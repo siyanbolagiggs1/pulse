@@ -3,7 +3,7 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -92,9 +92,20 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 
 	col := database.GetCollection(models.SocialAccountsCollection)
 
-	username := strings.ToLower(strings.TrimSpace(req.Username))
+	// Normalise URL: lowercase + strip trailing slash.
+	profileURL := strings.ToLower(strings.TrimRight(strings.TrimSpace(req.ProfileURL), "/"))
+
+	// Derive username from the URL path's last segment (strip leading @).
+	username := req.Username
+	if username == "" {
+		parts := strings.Split(profileURL, "/")
+		username = strings.TrimPrefix(parts[len(parts)-1], "@")
+	}
+	username = strings.ToLower(strings.TrimSpace(username))
 
 	var existing models.SocialAccount
+
+	// Check: this user already has an account on this platform.
 	err = col.FindOne(ctx, bson.M{"userId": objID, "platform": req.Platform}).Decode(&existing)
 	if err == nil {
 		return nil, ErrDuplicatePlatform
@@ -103,9 +114,17 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 		return nil, err
 	}
 
-	// All platforms use admin review — Twitter auto-lookup requires paid API access.
-	if req.ProfileURL == "" {
-		return nil, fmt.Errorf("profile URL is required")
+	// Check: another user already linked this profile URL.
+	// Case-insensitive + optional trailing slash to catch old records stored with different formatting.
+	urlPattern := "^" + regexp.QuoteMeta(profileURL) + "/?$"
+	err = col.FindOne(ctx, bson.M{
+		"profileUrl": bson.Regex{Pattern: urlPattern, Options: "i"},
+	}).Decode(&existing)
+	if err == nil {
+		return nil, ErrDuplicateSocialAccount
+	}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -114,7 +133,7 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 		Platform:       req.Platform,
 		Username:       username,
 		PlatformUserID: username,
-		ProfileURL:     req.ProfileURL,
+		ProfileURL:     profileURL,
 		Status:         models.SocialAccountPending,
 		LastSyncedAt:   now,
 		CreatedAt:      now,
@@ -123,11 +142,7 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 	result, err := col.InsertOne(ctx, acc)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			errStr := err.Error()
-			if strings.Contains(errStr, "platform_username_unique") {
-				return nil, ErrDuplicateSocialAccount
-			}
-			return nil, ErrDuplicatePlatform
+			return nil, ErrDuplicateSocialAccount
 		}
 		return nil, err
 	}

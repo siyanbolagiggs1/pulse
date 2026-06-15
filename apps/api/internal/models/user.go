@@ -34,9 +34,6 @@ type User struct {
 	TrustScore      float64             `bson:"trustScore"          json:"trustScore"`
 	Badges          []VerificationBadge `bson:"badges"              json:"badges"`
 
-	StripeConnectAccountID string `bson:"stripeConnectAccountId" json:"stripeConnectAccountId,omitempty"`
-	StripeConnectStatus    string `bson:"stripeConnectStatus"    json:"stripeConnectStatus,omitempty"`
-
 	RefreshToken        string    `bson:"refreshToken"         json:"-"`
 	EmailVerifyToken    string    `bson:"emailVerifyToken"     json:"-"`
 	PasswordResetToken  string    `bson:"passwordResetToken"   json:"-"`

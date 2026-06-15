@@ -44,7 +44,11 @@ export default function NewCampaignPage() {
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
-      await campaignsApi.create(data);
+      await campaignsApi.create({
+        ...data,
+        startDate: new Date(data.startDate).toISOString(),
+        endDate: new Date(data.endDate).toISOString(),
+      });
       toast({ title: "Campaign created!", description: "Budget locked from your wallet." });
       router.push("/dashboard/campaigns");
     } catch (err: any) {

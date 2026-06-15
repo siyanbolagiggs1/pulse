@@ -16,6 +16,26 @@ type RejectWithdrawalRequest struct {
 	Reason string `json:"reason" binding:"required,min=5,max=500"`
 }
 
+type ApproveSocialAccountRequest struct {
+	FollowerCount  int64   `json:"followerCount"  binding:"required,min=0"`
+	FollowingCount int64   `json:"followingCount" binding:"min=0"`
+	EngagementRate float64 `json:"engagementRate" binding:"min=0"`
+	AccountAgeDays int     `json:"accountAgeDays" binding:"required,min=1"`
+}
+
+type RejectSocialAccountRequest struct {
+	Reason string `json:"reason" binding:"required,min=5,max=500"`
+}
+
+type PendingSocialAccountResponse struct {
+	ID         string          `json:"id"`
+	UserID     string          `json:"userId"`
+	Platform   models.Platform `json:"platform"`
+	Username   string          `json:"username"`
+	ProfileURL string          `json:"profileUrl"`
+	CreatedAt  time.Time       `json:"createdAt"`
+}
+
 // ── Query params ─────────────────────────────────────────────
 
 type UserListQuery struct {
@@ -86,7 +106,6 @@ type AdminUserResponse struct {
 	IsSuspended         bool                       `json:"isSuspended"`
 	TrustScore          float64                    `json:"trustScore"`
 	Badges              []models.VerificationBadge `json:"badges"`
-	StripeConnectStatus string                     `json:"stripeConnectStatus,omitempty"`
 	CreatedAt           time.Time                  `json:"createdAt"`
 }
 
@@ -108,7 +127,7 @@ type WithdrawalAdminResponse struct {
 	Fee            float64                 `json:"fee"`
 	NetAmount      float64                 `json:"netAmount"`
 	Status         models.WithdrawalStatus `json:"status"`
-	StripePayoutID string                  `json:"stripePayoutId,omitempty"`
+	PayoutID       string                  `json:"payoutId,omitempty"`
 	RequestedAt    time.Time               `json:"requestedAt"`
 	ProcessedAt    time.Time               `json:"processedAt,omitempty"`
 }
@@ -136,9 +155,8 @@ func toAdminUserResponse(u *models.User) AdminUserResponse {
 		IsEmailVerified:     u.IsEmailVerified,
 		IsSuspended:         u.IsSuspended,
 		TrustScore:          u.TrustScore,
-		Badges:              badges,
-		StripeConnectStatus: u.StripeConnectStatus,
-		CreatedAt:           u.CreatedAt,
+		Badges:    badges,
+		CreatedAt: u.CreatedAt,
 	}
 }
 
@@ -163,7 +181,7 @@ func toWithdrawalAdminResponse(w *models.Withdrawal) WithdrawalAdminResponse {
 		Fee:            w.Fee,
 		NetAmount:      w.NetAmount,
 		Status:         w.Status,
-		StripePayoutID: w.StripePayoutID,
+		PayoutID:       w.PayoutID,
 		RequestedAt:    w.RequestedAt,
 		ProcessedAt:    w.ProcessedAt,
 	}

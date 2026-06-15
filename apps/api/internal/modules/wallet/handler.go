@@ -8,12 +8,10 @@ import (
 	"net/http"
 	"strconv"
 
-	stripe "github.com/stripe/stripe-go/v78"
-	stripewebhook "github.com/stripe/stripe-go/v78/webhook"
-
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/middleware"
+	"github.com/pulse/api/internal/services/paystack"
 	"github.com/pulse/api/internal/utils"
 )
 
@@ -42,7 +40,7 @@ func handleGetWallet(c *gin.Context) {
 		PendingBalance:   w.PendingBalance,
 		TotalEarned:      w.TotalEarned,
 		TotalSpent:       w.TotalSpent,
-		Currency:         w.Currency,
+		Currency:         config.App.PaystackCurrency,
 		RecentTx:         recentTx,
 		UpdatedAt:        w.UpdatedAt,
 	})
@@ -89,59 +87,81 @@ func handleCreateTopup(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
+
 	resp, err := createTopup(c.Request.Context(), userID, req.Amount)
 	if err != nil {
-		if errors.Is(err, ErrStripeNotConfigured) {
-			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
-			return
-		}
-		utils.Fail(c, http.StatusInternalServerError, "Failed to create payment intent")
+		utils.Fail(c, http.StatusInternalServerError, "Failed to initiate payment")
 		return
 	}
 
-	utils.OK(c, http.StatusOK, "Payment intent created — complete payment on the client", resp)
+	utils.OK(c, http.StatusOK, "Payment initiated", resp)
 }
 
-// POST /api/wallet/topup/webhook  (no auth — Stripe calls this)
+// GET /api/wallet/topup/verify?reference=xxx
+func handleVerifyTopup(c *gin.Context) {
+	reference := c.Query("reference")
+	if reference == "" {
+		utils.Fail(c, http.StatusBadRequest, "reference is required")
+		return
+	}
+
+	if err := verifyTopup(c.Request.Context(), reference); err != nil {
+		switch {
+		case errors.Is(err, ErrPaystackNotConfigured):
+			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
+		case errors.Is(err, ErrPaymentNotSuccessful):
+			utils.Fail(c, http.StatusBadRequest, "Payment was not completed")
+		default:
+			utils.Fail(c, http.StatusInternalServerError, "Failed to verify payment")
+		}
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "Wallet credited successfully", nil)
+}
+
+// POST /api/wallet/topup/webhook  (no auth — Paystack calls this)
 func handleTopupWebhook(c *gin.Context) {
-	payload, err := io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		utils.Fail(c, http.StatusBadRequest, "Could not read request body")
 		return
 	}
 
-	sig := c.GetHeader("Stripe-Signature")
-	event, err := stripewebhook.ConstructEvent(payload, sig, config.App.StripeWebhookSecret)
-	if err != nil {
+	sig := c.GetHeader("X-Paystack-Signature")
+	if !paystack.ValidateWebhookSignature(config.App.PaystackSecretKey, sig, body) {
 		utils.Fail(c, http.StatusBadRequest, "Invalid webhook signature")
 		return
 	}
 
-	if event.Type != "payment_intent.succeeded" {
-		// Acknowledge but ignore other event types.
+	var event struct {
+		Event string `json:"event"`
+		Data  struct {
+			Reference string         `json:"reference"`
+			Status    string         `json:"status"`
+			Amount    int64          `json:"amount"`
+			Metadata  map[string]any `json:"metadata"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &event); err != nil {
+		utils.Fail(c, http.StatusBadRequest, "Could not parse webhook payload")
+		return
+	}
+
+	if event.Event != "charge.success" {
 		c.Status(http.StatusOK)
 		return
 	}
 
-	var pi stripe.PaymentIntent
-	if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
-		utils.Fail(c, http.StatusBadRequest, "Could not parse payment intent")
-		return
-	}
-
-	userID, ok := pi.Metadata["userID"]
-	if !ok || userID == "" {
-		utils.Fail(c, http.StatusBadRequest, "Missing userID in metadata")
-		return
-	}
-	eventType, _ := pi.Metadata["type"]
-	if eventType != "wallet_topup" {
+	userID, _ := event.Data.Metadata["userID"].(string)
+	eventType, _ := event.Data.Metadata["type"].(string)
+	if userID == "" || eventType != "wallet_topup" {
 		c.Status(http.StatusOK)
 		return
 	}
 
-	amount := float64(pi.Amount) / 100.0
-	if err := creditWallet(c.Request.Context(), userID, amount, pi.ID); err != nil {
+	amount := float64(event.Data.Amount) / 100.0
+	if err := creditWallet(c.Request.Context(), userID, amount, event.Data.Reference); err != nil {
 		utils.Fail(c, http.StatusInternalServerError, "Failed to credit wallet")
 		return
 	}
@@ -165,17 +185,13 @@ func handleWithdraw(c *gin.Context) {
 			utils.Fail(c, http.StatusBadRequest, err.Error())
 		case errors.Is(err, ErrInsufficientBalance):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrNoConnectAccount), errors.Is(err, ErrConnectNotActive):
-			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrStripeNotConfigured):
-			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
 		default:
 			utils.Fail(c, http.StatusInternalServerError, "Failed to process withdrawal")
 		}
 		return
 	}
 
-	utils.OK(c, http.StatusOK, "Withdrawal initiated", toWithdrawalResponse(w))
+	utils.OK(c, http.StatusOK, "Withdrawal requested — admin will review and process it", toWithdrawalResponse(w))
 }
 
 // GET /api/wallet/withdrawals
@@ -208,39 +224,4 @@ func handleGetWithdrawals(c *gin.Context) {
 		Limit: limit,
 		Pages: int64(math.Ceil(float64(total) / float64(limit))),
 	})
-}
-
-// POST /api/wallet/connect
-func handleCreateConnect(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	resp, err := createConnectAccount(c.Request.Context(), userID)
-	if err != nil {
-		if errors.Is(err, ErrStripeNotConfigured) {
-			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
-			return
-		}
-		utils.Fail(c, http.StatusInternalServerError, "Failed to create Connect account")
-		return
-	}
-
-	utils.OK(c, http.StatusOK, "Complete onboarding at the provided URL", resp)
-}
-
-// GET /api/wallet/connect/status
-func handleGetConnectStatus(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	resp, err := getConnectStatus(c.Request.Context(), userID)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrNoConnectAccount):
-			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrStripeNotConfigured):
-			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
-		default:
-			utils.Fail(c, http.StatusInternalServerError, "Failed to fetch Connect status")
-		}
-		return
-	}
-
-	utils.OK(c, http.StatusOK, "", resp)
 }

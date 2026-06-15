@@ -16,6 +16,11 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type GoogleSignInRequest struct {
+	Credential string `json:"credential" binding:"required"`
+	Role       string `json:"role"       binding:"omitempty,oneof=business promoter"`
+}
+
 type ForgotPasswordRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }

@@ -14,32 +14,35 @@ type UpdateProfileRequest struct {
 }
 
 type ConnectSocialAccountRequest struct {
-	Platform       models.Platform `json:"platform"       binding:"required,oneof=instagram twitter"`
-	PlatformUserID string          `json:"platformUserId" binding:"required"`
-	Username       string          `json:"username"       binding:"required"`
-	ProfileURL     string          `json:"profileUrl"     binding:"required"`
-	FollowerCount  int64           `json:"followerCount"  binding:"min=0"`
-	FollowingCount int64           `json:"followingCount" binding:"min=0"`
-	EngagementRate float64         `json:"engagementRate" binding:"min=0"`
-	AccountAgeDays int             `json:"accountAgeDays" binding:"min=0"`
-	IsVerified     bool            `json:"isVerified"`
+	Platform   models.Platform `json:"platform"   binding:"required,oneof=instagram twitter tiktok"`
+	Username   string          `json:"username"   binding:"omitempty"`
+	ProfileURL string          `json:"profileUrl" binding:"required,url"`
+}
+
+type ApproveSocialAccountRequest struct {
+	FollowerCount  int64   `json:"followerCount"  binding:"required,min=0"`
+	FollowingCount int64   `json:"followingCount" binding:"min=0"`
+	EngagementRate float64 `json:"engagementRate" binding:"min=0"`
+	AccountAgeDays int     `json:"accountAgeDays" binding:"required,min=1"`
 }
 
 // ── Responses ────────────────────────────────────────────────
 
 type SocialAccountResponse struct {
-	ID             string          `json:"id"`
-	Platform       models.Platform `json:"platform"`
-	PlatformUserID string          `json:"platformUserId"`
-	Username       string          `json:"username"`
-	ProfileURL     string          `json:"profileUrl"`
-	FollowerCount  int64           `json:"followerCount"`
-	FollowingCount int64           `json:"followingCount"`
-	EngagementRate float64         `json:"engagementRate"`
-	AccountAgeDays int             `json:"accountAgeDays"`
-	InfluenceScore float64         `json:"influenceScore"`
-	IsVerified     bool            `json:"isVerified"`
-	LastSyncedAt   time.Time       `json:"lastSyncedAt"`
+	ID             string                      `json:"id"`
+	Platform       models.Platform             `json:"platform"`
+	PlatformUserID string                      `json:"platformUserId"`
+	Username       string                      `json:"username"`
+	ProfileURL     string                      `json:"profileUrl"`
+	FollowerCount  int64                       `json:"followerCount"`
+	FollowingCount int64                       `json:"followingCount"`
+	EngagementRate float64                     `json:"engagementRate"`
+	AccountAgeDays int                         `json:"accountAgeDays"`
+	InfluenceScore float64                     `json:"influenceScore"`
+	IsVerified     bool                        `json:"isVerified"`
+	Status         models.SocialAccountStatus  `json:"status"`
+	RejectedReason string                      `json:"rejectedReason,omitempty"`
+	LastSyncedAt   time.Time                   `json:"lastSyncedAt"`
 }
 
 type UserResponse struct {
@@ -114,6 +117,8 @@ func toSocialAccountResponse(a *models.SocialAccount) SocialAccountResponse {
 		AccountAgeDays: a.AccountAge,
 		InfluenceScore: a.InfluenceScore,
 		IsVerified:     a.IsVerified,
+		Status:         a.Status,
+		RejectedReason: a.RejectedReason,
 		LastSyncedAt:   a.LastSyncedAt,
 	}
 }
