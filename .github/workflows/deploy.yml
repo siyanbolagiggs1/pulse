@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
 
 # Prevent concurrent deployments
 concurrency:
@@ -10,21 +10,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Deploy API → Fly.io ────────────────────────────────────────
+  # ── Deploy API → Railway ───────────────────────────────────────
   deploy-api:
-    name: Deploy API (Fly.io)
+    name: Deploy API (Railway)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
-      - name: Deploy
+      - name: Deploy to Railway
         working-directory: apps/api
-        run: flyctl deploy --remote-only
+        run: railway up --service pulse-api --detach
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # ── Deploy Web → Vercel ────────────────────────────────────────
   deploy-web:

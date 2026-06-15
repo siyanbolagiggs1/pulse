@@ -18,7 +18,7 @@ Businesses run repost campaigns. Promoters earn money sharing them.
 | 7 | Influence scoring + fraud detection | ✅ Complete |
 | 8 | Real-time notifications (SSE) | ✅ Complete |
 | 9 | Frontend pages + dashboards | ✅ Complete |
-| 10 | Production deploy config (CI/CD, Fly.io, Vercel) | ✅ Complete |
+| 10 | Production deploy config (CI/CD, Railway, Vercel) | ✅ Complete |
 | 11 | Polish + missing UX (profile, social accounts, campaign edit, pagination, mobile nav) | ✅ Complete |
 
 ---
@@ -187,44 +187,21 @@ npm run dev
 
 ## Production Deployment
 
-Two options: **managed** (Fly.io + Vercel, easiest) or **self-hosted** (VPS with Docker + Caddy, full control).
+Two options: **managed** (Railway + Vercel, easiest, free) or **self-hosted** (VPS with Docker + Caddy, full control).
 
 ---
 
-### Option 1 — Fly.io (API) + Vercel (Web) — Recommended
+### Option 1 — Railway (API) + Vercel (Web) — Recommended
 
-#### API → Fly.io
+#### API → Railway
 
-```bash
-# Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
-cd apps/api
+1. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
+2. Select your repo and set **Root Directory** to `apps/api`
+3. Railway auto-detects the Dockerfile and builds it
+4. Under **Variables**, add all required secrets (see Environment Variables Reference below)
+5. Note the public URL Railway assigns — e.g. `https://pulse-api-production.up.railway.app`
 
-# First time only
-flyctl launch --no-deploy          # reads fly.toml, creates the app
-
-# Set all secrets (do NOT commit these)
-flyctl secrets set \
-  MONGODB_URI="mongodb+srv://..." \
-  REDIS_URL="rediss://..." \
-  JWT_ACCESS_SECRET="$(openssl rand -hex 32)" \
-  JWT_REFRESH_SECRET="$(openssl rand -hex 32)" \
-  PAYSTACK_SECRET_KEY="sk_live_..." \
-  PAYSTACK_PUBLIC_KEY="pk_live_..." \
-  PAYSTACK_CURRENCY="NGN" \
-  SMTP_HOST="smtp.gmail.com" \
-  SMTP_PORT="587" \
-  SMTP_USER="your@gmail.com" \
-  SMTP_PASS="your-app-password" \
-  SMTP_FROM="noreply@pulse.app" \
-  CLIENT_URL="https://your-app.vercel.app"
-
-# Deploy
-flyctl deploy
-```
-
-The API will be live at `https://pulse-api-siyan.fly.dev`.
-
-For file uploads, Fly.io creates a persistent volume (`pulse_uploads`) as defined in `fly.toml`.
+> **File uploads note:** Railway's free tier has no persistent volumes. Uploaded screenshots are lost on redeploy. Use [Cloudinary](https://cloudinary.com) (free 25GB) for persistent file storage when you're ready.
 
 #### Web → Vercel
 
@@ -236,7 +213,7 @@ cd apps/web
 vercel link
 
 # Set environment variables in Vercel dashboard:
-#   NEXT_PUBLIC_API_URL = https://pulse-api-siyan.fly.dev/api
+#   NEXT_PUBLIC_API_URL = https://your-railway-url.up.railway.app/api
 
 # Deploy to production
 vercel --prod
@@ -250,7 +227,7 @@ Add these secrets to GitHub → Settings → Secrets and variables → Actions:
 
 | Secret | How to get it |
 |---|---|
-| `FLY_API_TOKEN` | `flyctl tokens create deploy` |
+| `RAILWAY_TOKEN` | Railway dashboard → Account Settings → Tokens |
 | `VERCEL_TOKEN` | Vercel dashboard → Account → Tokens |
 | `VERCEL_ORG_ID` | `cat apps/web/.vercel/project.json` after `vercel link` |
 | `VERCEL_PROJECT_ID` | same file |
@@ -534,7 +511,7 @@ Everything below is free until you hit scale.
 
 | Service | Purpose | Cost |
 |---|---|---|
-| [fly.io](https://fly.io) | Host the Go API | Free (3 shared VMs) |
+| [railway.app](https://railway.app) | Host the Go API | ~$5 credit/month free |
 | [vercel.com](https://vercel.com) | Host the Next.js frontend | Free (hobby tier) |
 | [MongoDB Atlas](https://cloud.mongodb.com) | Database | Free (512 MB cluster) |
 | [Upstash](https://upstash.com) | Redis | Free (10k req/day) |
@@ -546,7 +523,7 @@ Everything below is free until you hit scale.
 
 1. Create a free **M0** cluster
 2. Create a database user with a password
-3. Under Network Access, add `0.0.0.0/0` (Fly.io uses dynamic IPs)
+3. Under Network Access, add `0.0.0.0/0` (Railway uses dynamic IPs)
 4. Click **Connect → Drivers** and copy your connection string:
    `mongodb+srv://user:pass@cluster.mongodb.net/pulse?retryWrites=true&w=majority`
 
@@ -554,58 +531,39 @@ Everything below is free until you hit scale.
 
 ### Step 2 — Upstash Redis
 
-1. Create a Redis database — pick the region closest to `iad` (US East)
+1. Create a Redis database — pick the region closest to your Railway region
 2. Copy the **Redis URL** — it looks like `rediss://default:password@host:port`
 
 ---
 
-### Step 3 — Deploy the API to Fly.io
+### Step 3 — Deploy the API to Railway
 
-Install the Fly CLI:
+1. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
+2. Select your repo, set **Root Directory** to `apps/api`
+3. Railway detects the Dockerfile and builds automatically
+4. Under **Variables**, add all secrets:
 
-```bash
-# Windows
-winget install flyctl
+| Variable | Value |
+|---|---|
+| `MONGODB_URI` | Your Atlas connection string |
+| `REDIS_URL` | Your Upstash Redis URL |
+| `JWT_ACCESS_SECRET` | Any random 32+ char string |
+| `JWT_REFRESH_SECRET` | Different random 32+ char string |
+| `PAYSTACK_SECRET_KEY` | `sk_live_...` from Paystack dashboard |
+| `PAYSTACK_PUBLIC_KEY` | `pk_live_...` from Paystack dashboard |
+| `PAYSTACK_CURRENCY` | e.g. `NGN` |
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | Your Gmail address |
+| `SMTP_PASS` | Your Gmail App Password |
+| `SMTP_FROM` | `noreply@yourdomain.com` |
+| `CLIENT_URL` | `https://your-app.vercel.app` (update after Step 4) |
+| `PORT` | `5000` |
+| `DB_NAME` | `pulse` |
+| `PLATFORM_COMMISSION_RATE` | `0.20` |
 
-# Mac
-brew install flyctl
-```
-
-Then run:
-
-```bash
-flyctl auth login
-cd apps/api
-flyctl launch --no-deploy
-```
-
-Set your secrets (replace all placeholder values):
-
-```bash
-flyctl secrets set \
-  MONGODB_URI="your-atlas-connection-string" \
-  REDIS_URL="your-upstash-redis-url" \
-  JWT_ACCESS_SECRET="any-random-32-char-string" \
-  JWT_REFRESH_SECRET="different-random-32-char-string" \
-  PAYSTACK_SECRET_KEY="sk_live_..." \
-  PAYSTACK_PUBLIC_KEY="pk_live_..." \
-  PAYSTACK_CURRENCY="NGN" \
-  SMTP_HOST="smtp.gmail.com" \
-  SMTP_PORT="587" \
-  SMTP_USER="your@gmail.com" \
-  SMTP_PASS="your-gmail-app-password" \
-  SMTP_FROM="noreply@yourdomain.com" \
-  CLIENT_URL="https://your-app.vercel.app" \
-  --app pulse-api-siyan
-```
-
-Deploy:
-
-```bash
-flyctl deploy --remote-only
-```
-
-Your API is live at `https://pulse-api-siyan.fly.dev`
+5. Under **Settings → Networking**, generate a public domain
+6. Your API is live at `https://your-service.up.railway.app`
 
 ---
 
@@ -620,13 +578,13 @@ vercel
 Follow the prompts. When asked for environment variables, add:
 
 ```
-NEXT_PUBLIC_API_URL = https://pulse-api-siyan.fly.dev/api
+NEXT_PUBLIC_API_URL = https://your-service.up.railway.app/api
 ```
 
-Once Vercel gives you your URL (e.g. `https://pulse-xyz.vercel.app`), go back and update the API secret so CORS works:
+Once Vercel gives you your URL (e.g. `https://pulse-xyz.vercel.app`), go back to Railway → Variables and update:
 
-```bash
-flyctl secrets set CLIENT_URL="https://pulse-xyz.vercel.app" --app pulse-api-siyan
+```
+CLIENT_URL = https://pulse-xyz.vercel.app
 ```
 
 ---
@@ -635,7 +593,7 @@ flyctl secrets set CLIENT_URL="https://pulse-xyz.vercel.app" --app pulse-api-siy
 
 In your Paystack dashboard → **Settings → Webhooks**:
 
-- Add URL: `https://pulse-api-siyan.fly.dev/api/wallet/topup/webhook`
+- Add URL: `https://your-service.up.railway.app/api/wallet/topup/webhook`
 - Events: `charge.success`
 
 ---
@@ -655,7 +613,7 @@ Add these secrets to your GitHub repo → **Settings → Secrets → Actions**:
 
 | Secret | How to get it |
 |---|---|
-| `FLY_API_TOKEN` | Run `flyctl tokens create deploy` |
+| `RAILWAY_TOKEN` | Railway dashboard → Account Settings → Tokens |
 | `VERCEL_TOKEN` | Vercel dashboard → Account Settings → Tokens |
 | `VERCEL_ORG_ID` | Run `cat apps/web/.vercel/project.json` after `vercel link` |
 | `VERCEL_PROJECT_ID` | Same file as above |
