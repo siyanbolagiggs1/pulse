@@ -57,8 +57,6 @@ export default function LoginPage() {
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <CardDescription>Enter your credentials to access your account</CardDescription>
-        {/* DEBUG — remove after confirming */}
-        <p className="text-xs text-red-500">{process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? `GID: ${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID.slice(0,10)}…` : "GID MISSING"}</p>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
