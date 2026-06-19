@@ -1,10 +1,13 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/pulse/api/internal/config"
-	"gopkg.in/gomail.v2"
 )
 
 // SendVerificationEmail sends an email with a verification link.
@@ -17,34 +20,49 @@ func SendVerificationEmail(toEmail, toName, token string) error {
 
 // SendPasswordResetEmail sends a password reset link.
 func SendPasswordResetEmail(toEmail, toName, token string) error {
-	link := fmt.Sprintf("%s/reset-password?token=%s", config.App.ClientURL, token)
+	link := fmt.Sprintf("%s/reset-password/%s", config.App.ClientURL, token)
 	subject := "Reset your Pulse password"
 	body := passwordResetEmailHTML(toName, link)
 	return sendEmail(toEmail, subject, body)
 }
 
 func sendEmail(to, subject, htmlBody string) error {
-	// In dev mode with no SMTP credentials, skip sending and log instead.
-	if config.App.SMTPUser == "" || config.App.SMTPPass == "" ||
-		config.App.SMTPUser == "your@gmail.com" || config.App.SMTPPass == "your-app-password" {
+	if config.App.ResendAPIKey == "" {
 		fmt.Printf("\n[DEV EMAIL] To: %s | Subject: %s\n", to, subject)
 		return nil
 	}
 
-	m := gomail.NewMessage()
-	m.SetHeader("From", fmt.Sprintf("Pulse <%s>", config.App.SMTPFrom))
-	m.SetHeader("To", to)
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", htmlBody)
+	from := config.App.SMTPFrom
+	if from == "" {
+		from = "noreply@pulse.app"
+	}
 
-	d := gomail.NewDialer(
-		config.App.SMTPHost,
-		config.App.SMTPPort,
-		config.App.SMTPUser,
-		config.App.SMTPPass,
-	)
+	payload, _ := json.Marshal(map[string]any{
+		"from":    fmt.Sprintf("Pulse <%s>", from),
+		"to":      []string{to},
+		"subject": subject,
+		"html":    htmlBody,
+	})
 
-	return d.DialAndSend(m)
+	req, err := http.NewRequest("POST", "https://api.resend.com/emails", bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+config.App.ResendAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend error %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
 // ── Email templates ──────────────────────────────────────────
