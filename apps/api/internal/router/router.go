@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -25,16 +26,29 @@ func Setup() *gin.Engine {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
+	clientURL := strings.TrimRight(config.App.ClientURL, "/")
 	corsConfig := cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}
-	if config.App.ClientURL == "*" {
+	if clientURL == "" || clientURL == "*" ||
+		(!strings.HasPrefix(clientURL, "http://") && !strings.HasPrefix(clientURL, "https://")) {
 		corsConfig.AllowAllOrigins = true
+		corsConfig.AllowCredentials = false
 	} else {
-		corsConfig.AllowOrigins = []string{config.App.ClientURL}
+		// Allow both the configured origin and any Vercel preview URLs for the same project
+		corsConfig.AllowOriginFunc = func(origin string) bool {
+			if origin == clientURL {
+				return true
+			}
+			// Allow Vercel preview deployments (*.vercel.app) if clientURL is on vercel.app
+			if strings.HasSuffix(clientURL, ".vercel.app") && strings.HasSuffix(origin, ".vercel.app") {
+				return true
+			}
+			return false
+		}
 	}
 	r.Use(cors.New(corsConfig))
 
