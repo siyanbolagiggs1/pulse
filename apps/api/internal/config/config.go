@@ -47,6 +47,9 @@ type Config struct {
 	// Email (Resend HTTP API — preferred over SMTP on Railway)
 	ResendAPIKey string
 
+	// Email (Brevo — fallback if ResendAPIKey not set)
+	BrevoAPIKey string
+
 	// App
 	ClientURL          string
 	UploadDir          string
@@ -89,6 +92,7 @@ func Load() {
 		SMTPFrom: getEnv("SMTP_FROM", "noreply@pulse.app"),
 
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		BrevoAPIKey:  getEnv("BREVO_API_KEY", ""),
 
 		ClientURL:          getEnv("CLIENT_URL", "http://localhost:3000"),
 		UploadDir:          getEnv("UPLOAD_DIR", "./uploads"),

@@ -27,11 +27,51 @@ func SendPasswordResetEmail(toEmail, toName, token string) error {
 }
 
 func sendEmail(to, subject, htmlBody string) error {
-	if config.App.ResendAPIKey == "" {
+	switch {
+	case config.App.BrevoAPIKey != "":
+		return sendViaBrevo(to, subject, htmlBody)
+	case config.App.ResendAPIKey != "":
+		return sendViaResend(to, subject, htmlBody)
+	default:
 		fmt.Printf("\n[DEV EMAIL] To: %s | Subject: %s\n", to, subject)
 		return nil
 	}
+}
 
+func sendViaBrevo(to, subject, htmlBody string) error {
+	from := config.App.SMTPFrom
+	if from == "" {
+		from = "noreply@pulse.app"
+	}
+
+	payload, _ := json.Marshal(map[string]any{
+		"sender":      map[string]string{"name": "Pulse", "email": from},
+		"to":          []map[string]string{{"email": to}},
+		"subject":     subject,
+		"htmlContent": htmlBody,
+	})
+
+	req, err := http.NewRequest("POST", "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("api-key", config.App.BrevoAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("brevo error %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+func sendViaResend(to, subject, htmlBody string) error {
 	from := config.App.SMTPFrom
 	if from == "" {
 		from = "noreply@pulse.app"
@@ -61,7 +101,6 @@ func sendEmail(to, subject, htmlBody string) error {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("resend error %d: %s", resp.StatusCode, string(body))
 	}
-
 	return nil
 }
 
