@@ -65,7 +65,7 @@ export default function CampaignDetailPage() {
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!campaign) return <p>Campaign not found.</p>;
+  if (!campaign) return <p>Advert not found.</p>;
 
   return (
     <div className="space-y-6">

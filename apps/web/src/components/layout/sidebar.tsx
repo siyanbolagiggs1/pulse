@@ -13,7 +13,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 type NavItem = { label: string; href: string; icon: React.ElementType };
 
 const businessNav: NavItem[] = [
-  { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
+  { label: "My Adverts", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Submissions", href: "/dashboard/submissions", icon: FileText },
   { label: "Wallet", href: "/dashboard/wallet", icon: Wallet },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },

@@ -49,10 +49,10 @@ export default function NewCampaignPage() {
         startDate: new Date(data.startDate).toISOString(),
         endDate: new Date(data.endDate).toISOString(),
       });
-      toast({ title: "Campaign created!", description: "Budget locked from your wallet." });
+      toast({ title: "Advert created!", description: "Budget locked from your wallet." });
       router.push("/dashboard/campaigns");
     } catch (err: any) {
-      toast({ title: "Failed", description: err?.response?.data?.message ?? "Could not create campaign", variant: "destructive" });
+      toast({ title: "Failed", description: err?.response?.data?.message ?? "Could not create advert", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -71,13 +71,13 @@ export default function NewCampaignPage() {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/campaigns"><ArrowLeft className="h-4 w-4" /></Link></Button>
         <div>
-          <h2 className="text-2xl font-bold">New Campaign</h2>
+          <h2 className="text-2xl font-bold">New Advert</h2>
           <p className="text-muted-foreground">Budget is locked from your wallet on creation</p>
         </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Campaign Details</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Advert Details</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {field("title", "Title", "text", "Summer sale repost campaign")}
@@ -120,7 +120,7 @@ export default function NewCampaignPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating…" : "Create Campaign"}
+              {loading ? "Creating…" : "Create Advert"}
             </Button>
           </form>
         </CardContent>

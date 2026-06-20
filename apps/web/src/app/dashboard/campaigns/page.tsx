@@ -36,7 +36,7 @@ export default function CampaignsPage() {
         setCampaigns(r.data.data);
         setPages(r.data.meta?.pages ?? 1);
       })
-      .catch(() => toast({ title: "Failed to load campaigns", variant: "destructive" }))
+      .catch(() => toast({ title: "Failed to load adverts", variant: "destructive" }))
       .finally(() => setLoading(false));
   };
 
@@ -47,7 +47,7 @@ export default function CampaignsPage() {
     setDeleting(true);
     try {
       await campaignsApi.delete(deleteTarget.id);
-      toast({ title: "Campaign deleted", description: "Remaining budget refunded to wallet." });
+      toast({ title: "Advert deleted", description: "Remaining budget refunded to wallet." });
       setDeleteTarget(null);
       load(page);
     } catch (err: any) {
@@ -59,11 +59,11 @@ export default function CampaignsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Campaigns</h2>
-          <p className="text-muted-foreground">Manage your repost campaigns</p>
+          <h2 className="text-2xl font-bold">My Adverts</h2>
+          <p className="text-muted-foreground">Manage your adverts</p>
         </div>
         <Button asChild>
-          <Link href="/dashboard/campaigns/new"><Plus className="mr-2 h-4 w-4" />New Campaign</Link>
+          <Link href="/dashboard/campaigns/new"><Plus className="mr-2 h-4 w-4" />New Advert</Link>
         </Button>
       </div>
 
@@ -73,7 +73,7 @@ export default function CampaignsPage() {
         </div>
       ) : campaigns.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">
-          No campaigns yet. <Link href="/dashboard/campaigns/new" className="text-primary hover:underline">Create your first</Link>.
+          No adverts yet. <Link href="/dashboard/campaigns/new" className="text-primary hover:underline">Create your first</Link>.
         </CardContent></Card>
       ) : (
         <>

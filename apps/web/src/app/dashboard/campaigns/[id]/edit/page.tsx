@@ -58,7 +58,7 @@ export default function EditCampaignPage() {
           endDate: format(new Date(c.endDate), "yyyy-MM-dd"),
         });
       })
-      .catch(() => toast({ title: "Failed to load campaign", variant: "destructive" }))
+      .catch(() => toast({ title: "Failed to load advert", variant: "destructive" }))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -69,7 +69,7 @@ export default function EditCampaignPage() {
         ...data,
         endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
       });
-      toast({ title: "Campaign updated" });
+      toast({ title: "Advert updated" });
       router.push(`/dashboard/campaigns/${id}`);
     } catch (err: any) {
       toast({ title: "Failed to update", description: err?.response?.data?.message, variant: "destructive" });
@@ -85,7 +85,7 @@ export default function EditCampaignPage() {
   );
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!campaign) return <p>Campaign not found.</p>;
+  if (!campaign) return <p>Advert not found.</p>;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -94,13 +94,13 @@ export default function EditCampaignPage() {
           <Link href={`/dashboard/campaigns/${id}`}><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
-          <h2 className="text-2xl font-bold">Edit Campaign</h2>
+          <h2 className="text-2xl font-bold">Edit Advert</h2>
           <p className="text-muted-foreground capitalize">{campaign.platform} · {campaign.status}</p>
         </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Campaign Details</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Advert Details</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {field("title", "Title")}
