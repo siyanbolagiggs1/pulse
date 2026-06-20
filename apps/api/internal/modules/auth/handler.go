@@ -196,20 +196,37 @@ func handleGoogleSignIn(c *gin.Context) {
 func setRefreshCookie(c *gin.Context, token string) {
 	ttl := refreshTokenTTL(token)
 	secure := config.App.Env == "production"
-	c.SetCookie(
-		refreshTokenCookie,
-		token,
-		int(ttl.Seconds()),
-		"/",
-		"",
-		secure,
-		true, // httpOnly
-	)
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		// SameSite=None is required for cross-site requests (Vercel → Railway).
+		sameSite = http.SameSiteNoneMode
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     refreshTokenCookie,
+		Value:    token,
+		MaxAge:   int(ttl.Seconds()),
+		Path:     "/",
+		Secure:   secure,
+		HttpOnly: true,
+		SameSite: sameSite,
+	})
 }
 
 func clearRefreshCookie(c *gin.Context) {
 	secure := config.App.Env == "production"
-	c.SetCookie(refreshTokenCookie, "", -1, "/", "", secure, true)
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     refreshTokenCookie,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Secure:   secure,
+		HttpOnly: true,
+		SameSite: sameSite,
+	})
 }
 
 // suppress unused import if time is only used transitively

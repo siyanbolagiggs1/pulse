@@ -2,7 +2,9 @@ package campaigns
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -12,6 +14,39 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
+
+const marketplaceCachePrefix = "campaigns:marketplace:"
+const marketplaceCacheTTL = 60 * time.Second
+
+type cachedCampaignList struct {
+	Campaigns []models.Campaign `json:"campaigns"`
+	Total     int64             `json:"total"`
+}
+
+func marketplaceCacheKey(q CampaignListQuery) string {
+	return fmt.Sprintf("%s%d:%d:%s:%s:%s", marketplaceCachePrefix, q.Page, q.Limit, q.Platform, q.Status, q.Sort)
+}
+
+func invalidateMarketplaceCache(ctx context.Context) {
+	r := database.Redis
+	if r == nil {
+		return
+	}
+	var cursor uint64
+	for {
+		keys, next, err := r.Scan(ctx, cursor, marketplaceCachePrefix+"*", 100).Result()
+		if err != nil {
+			break
+		}
+		if len(keys) > 0 {
+			r.Del(ctx, keys...)
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+}
 
 var (
 	ErrCampaignNotFound    = errors.New("campaign not found")
@@ -116,6 +151,8 @@ func createCampaign(ctx context.Context, businessID string, req CreateCampaignRe
 		return nil, err
 	}
 
+	go invalidateMarketplaceCache(ctx)
+
 	return campaign, nil
 }
 
@@ -125,6 +162,16 @@ func getCampaigns(ctx context.Context, q CampaignListQuery) ([]models.Campaign, 
 	}
 	if q.Limit < 1 || q.Limit > 50 {
 		q.Limit = 20
+	}
+
+	// Cache read
+	if database.Redis != nil {
+		if cached, err := database.Redis.Get(ctx, marketplaceCacheKey(q)).Bytes(); err == nil {
+			var hit cachedCampaignList
+			if json.Unmarshal(cached, &hit) == nil {
+				return hit.Campaigns, hit.Total, nil
+			}
+		}
 	}
 
 	filter := bson.M{}
@@ -167,6 +214,13 @@ func getCampaigns(ctx context.Context, q CampaignListQuery) ([]models.Campaign, 
 	var campaigns []models.Campaign
 	if err := cursor.All(ctx, &campaigns); err != nil {
 		return nil, 0, err
+	}
+
+	// Cache write
+	if database.Redis != nil {
+		if b, err := json.Marshal(cachedCampaignList{Campaigns: campaigns, Total: total}); err == nil {
+			database.Redis.Set(ctx, marketplaceCacheKey(q), b, marketplaceCacheTTL)
+		}
 	}
 
 	return campaigns, total, nil
@@ -263,6 +317,8 @@ func updateCampaign(ctx context.Context, businessID, campaignID string, req Upda
 		return nil, err
 	}
 
+	go invalidateMarketplaceCache(ctx)
+
 	return &campaign, nil
 }
 
@@ -322,5 +378,8 @@ func deleteCampaign(ctx context.Context, businessID, campaignID string) error {
 	}
 
 	_, err = col.DeleteOne(ctx, bson.M{"_id": campObjID})
+	if err == nil {
+		go invalidateMarketplaceCache(ctx)
+	}
 	return err
 }
