@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Bell, Download, Menu } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,15 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const { isInstallable, install } = usePWAInstall();
+
+  useEffect(() => {
+    if (!user) return;
+    notificationsApi.list().then((r) => {
+      const data = r.data;
+      setNotifications((data.data ?? []).slice(0, 10));
+      setUnread(data.meta?.unreadCount ?? 0);
+    }).catch(() => {});
+  }, [user]);
 
   const handleNotification = useCallback((n: Notification) => {
     setNotifications((prev) => [n, ...prev].slice(0, 10));

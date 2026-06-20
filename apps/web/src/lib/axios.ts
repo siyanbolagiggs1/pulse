@@ -9,7 +9,7 @@ const api = axios.create({
 // Attach access token from memory (set by auth store)
 api.interceptors.request.use((config) => {
   const token =
-    typeof window !== "undefined" ? sessionStorage.getItem("access_token") : null;
+    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -27,11 +27,11 @@ api.interceptors.response.use(
           {},
           { withCredentials: true }
         );
-        sessionStorage.setItem("access_token", data.data.accessToken);
+        localStorage.setItem("access_token", data.data.accessToken);
         original.headers.Authorization = `Bearer ${data.data.accessToken}`;
         return api(original);
       } catch {
-        sessionStorage.removeItem("access_token");
+        localStorage.removeItem("access_token");
         window.location.href = "/login";
       }
     }

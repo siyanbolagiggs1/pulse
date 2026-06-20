@@ -16,14 +16,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   setAuth: (user, token) => {
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("access_token", token);
+      localStorage.setItem("access_token", token);
     }
     set({ user, isLoading: false });
   },
   updateUser: (user) => set({ user }),
   clearAuth: () => {
     if (typeof window !== "undefined") {
-      sessionStorage.removeItem("access_token");
+      localStorage.removeItem("access_token");
     }
     set({ user: null, isLoading: false });
   },

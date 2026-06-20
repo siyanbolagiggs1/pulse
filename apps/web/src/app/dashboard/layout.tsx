@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (user) return;
-    const token = sessionStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
     if (!token) { clearAuth(); router.replace("/login"); return; }
 
     authApi.me()
