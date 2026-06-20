@@ -9,12 +9,14 @@ import (
 type NotificationType string
 
 const (
-	NotifSubmissionApproved  NotificationType = "submission_approved"
-	NotifSubmissionRejected  NotificationType = "submission_rejected"
-	NotifWithdrawalProcessed NotificationType = "withdrawal_processed"
-	NotifCampaignUpdated     NotificationType = "campaign_updated"
-	NotifWalletTopup         NotificationType = "wallet_topup"
-	NotifFraudFlag           NotificationType = "fraud_flag"
+	NotifSubmissionApproved    NotificationType = "submission_approved"
+	NotifSubmissionRejected    NotificationType = "submission_rejected"
+	NotifWithdrawalProcessed   NotificationType = "withdrawal_processed"
+	NotifCampaignUpdated       NotificationType = "campaign_updated"
+	NotifWalletTopup           NotificationType = "wallet_topup"
+	NotifFraudFlag             NotificationType = "fraud_flag"
+	NotifSocialAccountApproved NotificationType = "social_account_approved"
+	NotifSocialAccountRejected NotificationType = "social_account_rejected"
 )
 
 type Notification struct {

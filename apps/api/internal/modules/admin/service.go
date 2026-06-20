@@ -543,6 +543,13 @@ func approveSocialAccount(ctx context.Context, accountID string, req ApproveSoci
 	}
 
 	_ = col.FindOne(ctx, bson.M{"_id": accObjID}).Decode(&acc)
+
+	go notifications.Send(ctx, acc.UserID, models.NotifSocialAccountApproved,
+		"Social account verified",
+		fmt.Sprintf("Your %s account @%s has been verified and is now active.", acc.Platform, acc.Username),
+		map[string]interface{}{"accountId": acc.ID.Hex(), "platform": string(acc.Platform)},
+	)
+
 	return &acc, nil
 }
 
@@ -552,8 +559,18 @@ func rejectSocialAccount(ctx context.Context, accountID, reason string) error {
 		return ErrNotFound
 	}
 
-	result, err := database.GetCollection(models.SocialAccountsCollection).UpdateOne(ctx,
-		bson.M{"_id": accObjID, "status": models.SocialAccountPending},
+	col := database.GetCollection(models.SocialAccountsCollection)
+
+	var acc models.SocialAccount
+	if err := col.FindOne(ctx, bson.M{"_id": accObjID, "status": models.SocialAccountPending}).Decode(&acc); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	result, err := col.UpdateOne(ctx,
+		bson.M{"_id": accObjID},
 		bson.M{"$set": bson.M{
 			"status":         models.SocialAccountRejected,
 			"rejectedReason": reason,
@@ -565,5 +582,12 @@ func rejectSocialAccount(ctx context.Context, accountID, reason string) error {
 	if result.MatchedCount == 0 {
 		return ErrNotFound
 	}
+
+	go notifications.Send(ctx, acc.UserID, models.NotifSocialAccountRejected,
+		"Social account not verified",
+		fmt.Sprintf("Your %s account @%s could not be verified. Reason: %s", acc.Platform, acc.Username, reason),
+		map[string]interface{}{"accountId": acc.ID.Hex(), "platform": string(acc.Platform), "reason": reason},
+	)
+
 	return nil
 }
