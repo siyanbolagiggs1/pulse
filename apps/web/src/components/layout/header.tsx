@@ -45,8 +45,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
       <div className="flex items-center gap-3">
         {isInstallable && (
-          <Button variant="ghost" size="icon" onClick={install} title="Install app">
-            <Download className="h-5 w-5" />
+          <Button variant="outline" size="sm" onClick={install} className="gap-2 text-sm">
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Install app</span>
           </Button>
         )}
         <DropdownMenu>
