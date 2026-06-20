@@ -47,7 +47,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         {isInstallable && (
           <Button variant="outline" size="sm" onClick={install} className="gap-2 text-sm">
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Install app</span>
+            <span>Install app</span>
           </Button>
         )}
         <DropdownMenu>
