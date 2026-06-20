@@ -1,9 +1,10 @@
 "use client";
 import { useState, useCallback } from "react";
-import { Bell, Menu } from "lucide-react";
+import { Bell, Download, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth";
 import { useSSE } from "@/hooks/use-sse";
+import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { notificationsApi } from "@/lib/api";
 import type { Notification } from "@/types";
 import { formatDistanceToNow } from "date-fns";
@@ -16,6 +17,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const user = useAuthStore((s) => s.user);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  const { isInstallable, install } = usePWAInstall();
 
   const handleNotification = useCallback((n: Notification) => {
     setNotifications((prev) => [n, ...prev].slice(0, 10));
@@ -42,6 +44,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       </div>
 
       <div className="flex items-center gap-3">
+        {isInstallable && (
+          <Button variant="ghost" size="icon" onClick={install} title="Install app">
+            <Download className="h-5 w-5" />
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
