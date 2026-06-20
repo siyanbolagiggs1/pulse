@@ -44,7 +44,16 @@ export default function ProfilePage() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [platform, setPlatform] = useState<Platform>("twitter");
-  const [profileUrl, setProfileUrl] = useState("");
+  const [username, setUsername] = useState("");
+
+  const profileUrlPrefixes: Record<Platform, string> = {
+    instagram: "https://instagram.com/",
+    twitter: "https://twitter.com/",
+    tiktok: "https://tiktok.com/@",
+  };
+
+  const buildProfileUrl = (p: Platform, u: string) =>
+    `${profileUrlPrefixes[p]}${u.replace(/^@/, "")}`;
 
   useEffect(() => {
     if (user?.role !== "promoter") return;
@@ -79,18 +88,19 @@ export default function ProfilePage() {
   };
 
   const handleConnect = async () => {
-    if (!profileUrl.trim()) return toast({ title: "Profile URL is required", variant: "destructive" });
+    const clean = username.trim().replace(/^@/, "");
+    if (!clean) return toast({ title: "Username is required", variant: "destructive" });
 
     setConnecting(true);
     try {
       const res = await usersApi.connectSocialAccount({
         platform,
-        profileUrl: profileUrl.trim(),
+        username: clean,
+        profileUrl: buildProfileUrl(platform, clean),
       });
       setAccounts((prev) => [...prev, res.data.data]);
       setConnectOpen(false);
-      setProfileUrl("");
-
+      setUsername("");
       toast({
         title: "Submitted for review",
         description: "An admin will verify your account details within 24 hours.",
@@ -102,7 +112,7 @@ export default function ProfilePage() {
 
   const resetDialog = () => {
     setPlatform("twitter");
-    setProfileUrl("");
+    setUsername("");
   };
 
   return (
@@ -218,8 +228,8 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Platform</Label>
-              <Select value={platform} onValueChange={(v: Platform) => { setPlatform(v); setProfileUrl(""); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={platform} onValueChange={(v: Platform) => { setPlatform(v); setUsername(""); }}>
+                <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="twitter">Twitter / X</SelectItem>
                   <SelectItem value="instagram">Instagram</SelectItem>
@@ -229,17 +239,23 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-1">
-              <Label>Profile URL</Label>
-              <Input
-                placeholder={
-                  platform === "instagram" ? "https://instagram.com/yourhandle" :
-                  platform === "twitter" ? "https://twitter.com/yourhandle" :
-                  "https://tiktok.com/@yourhandle"
-                }
-                value={profileUrl}
-                onChange={(e) => setProfileUrl(e.target.value)}
-              />
+              <Label>Username</Label>
+              <div className="flex items-center rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
+                <span className="pl-3 text-sm text-muted-foreground">@</span>
+                <input
+                  className="flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
+                  placeholder="yourhandle"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.replace(/^@/, ""))}
+                />
+              </div>
+              {username.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  Profile: {buildProfileUrl(platform, username.trim())}
+                </p>
+              )}
             </div>
+
             <div className="rounded-md bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-400">
               Your account requires admin verification. An admin will visit your profile and confirm your stats within 24 hours.
             </div>

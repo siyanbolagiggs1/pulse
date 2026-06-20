@@ -67,7 +67,7 @@ export default function CampaignApplyPage() {
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!campaign) return <p>Campaign not found.</p>;
+  if (!campaign) return <p>Advert not found.</p>;
 
   const eligible = accounts.filter((a) =>
     a.followerCount >= campaign.minFollowers &&
@@ -86,7 +86,7 @@ export default function CampaignApplyPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Campaign Details</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Advert Details</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p>{campaign.description}</p>
           <a href={campaign.targetUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline break-all">{campaign.targetUrl}</a>

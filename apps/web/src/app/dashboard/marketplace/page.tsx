@@ -37,13 +37,13 @@ export default function MarketplacePage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Marketplace</h2>
-        <p className="text-muted-foreground">Browse campaigns and earn by sharing</p>
+        <p className="text-muted-foreground">Browse adverts and earn by sharing</p>
       </div>
 
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search campaigns…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input className="pl-9" placeholder="Search adverts…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Select value={platform} onValueChange={setPlatform}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
@@ -60,7 +60,7 @@ export default function MarketplacePage() {
           {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-52" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">No campaigns found</CardContent></Card>
+        <Card><CardContent className="py-12 text-center text-muted-foreground">No adverts found</CardContent></Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((c) => (
@@ -83,7 +83,7 @@ export default function MarketplacePage() {
                 </div>
                 <p className="text-xs text-muted-foreground">Ends {format(new Date(c.endDate), "MMM d")}</p>
                 <Button asChild className="w-full" size="sm">
-                  <Link href={`/dashboard/marketplace/${c.id}`}>View Campaign</Link>
+                  <Link href={`/dashboard/marketplace/${c.id}`}>View Advert</Link>
                 </Button>
               </CardContent>
             </Card>
