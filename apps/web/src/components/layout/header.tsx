@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback } from "react";
 import { Bell, Download, Menu } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth";
 import { useSSE } from "@/hooks/use-sse";
@@ -40,7 +41,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
         </Button>
-        <span className="text-lg font-semibold md:hidden text-primary">Pulse</span>
+        <Link href="/dashboard" className="text-lg font-semibold md:hidden text-primary">Pulse</Link>
       </div>
 
       <div className="flex items-center gap-3">
@@ -87,12 +88,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex items-center gap-2">
+        <Link href="/dashboard/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
             {user?.name?.[0]?.toUpperCase() ?? "U"}
           </div>
           <span className="hidden md:block text-sm font-medium">{user?.name}</span>
-        </div>
+        </Link>
       </div>
     </header>
   );
