@@ -632,3 +632,80 @@ Regular Gmail passwords don't work with SMTP. You need an App Password:
 ---
 
 *This README is updated continuously as the app is built.*
+
+
+
+
+
+
+
+
+
+<!-- env -->
+<!-- env -->
+<!-- env -->
+<!-- env -->
+<!-- env -->
+┌───────────────────────────┬──────────────────────────────────┐
+  │         Variable          │              Value               │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ NODE_ENV                  │ production ← change from         │
+  │                           │ development                      │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ PORT                      │ 5000                             │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ DB_NAME                   │ pulse                            │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ JWT_ACCESS_EXPIRY_MINUTES │ 15                               │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ JWT_REFRESH_EXPIRY_DAYS   │ 7                                │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ GOOGLE_CLIENT_ID          │ your existing value              │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ TWITTER_BEARER_TOKEN      │ your existing value              │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ PAYSTACK_SECRET_KEY       │ your existing sk_test_... value  │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ PAYSTACK_PUBLIC_KEY       │ your existing pk_test_... value  │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ PAYSTACK_CURRENCY         │ NGN                              │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ SMTP_HOST                 │ smtp.gmail.com                   │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ SMTP_PORT                 │ 587                              │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ SMTP_USER                 │ your Gmail                       │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ SMTP_PASS                 │ your existing app password       │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ SMTP_FROM                 │ your Gmail                       │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ PLATFORM_COMMISSION_RATE  │ 0.20                             │
+  ├───────────────────────────┼──────────────────────────────────┤
+  │ UPLOAD_DIR                │ /app/uploads ← change from       │
+  │                           │ ./uploads                        │
+  └───────────────────────────┴──────────────────────────────────┘
+
+  These 4 need new values — localhost won't work on Railway:
+
+  ┌────────────────────┬─────────────────────────────────────────┐
+  │      Variable      │               What to set               │
+  ├────────────────────┼─────────────────────────────────────────┤
+  │ MONGODB_URI        │ Your Atlas connection string (sign up   │
+  │                    │ at mongodb.com/atlas)                   │
+  ├────────────────────┼─────────────────────────────────────────┤
+  │ REDIS_URL          │ Your Upstash Redis URL (sign up at      │
+  │                    │ upstash.com)                            │
+  ├────────────────────┼─────────────────────────────────────────┤
+  │ JWT_ACCESS_SECRET  │ Generate a strong one — run openssl     │
+  │                    │ rand -hex 32 in your terminal           │
+  ├────────────────────┼─────────────────────────────────────────┤
+  │ JWT_REFRESH_SECRET │ Same — run again for a different value  │
+  └────────────────────┴─────────────────────────────────────────┘
+
+  Set last (after Vercel deploy gives you a URL):
+
+  ┌────────────┬─────────────────────────────┐
+  │  Variable  │            Value            │
+  ├────────────┼─────────────────────────────┤
+  │ CLIENT_URL │ https://your-app.vercel.app │

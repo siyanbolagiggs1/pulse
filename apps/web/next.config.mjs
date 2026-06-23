@@ -10,6 +10,13 @@ const withPWA = withPWAInit({
     disableDevLogs: true,
     skipWaiting: true,
     clientsClaim: true,
+    runtimeCaching: [
+      {
+        // Never cache API calls — auth cookies and fresh data must always hit the network.
+        urlPattern: /\/api\//,
+        handler: "NetworkOnly",
+      },
+    ],
   },
 });
 
