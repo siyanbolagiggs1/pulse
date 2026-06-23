@@ -1,25 +1,20 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { authApi } from "@/lib/api";
+import { isJwtExpired, attemptRefresh } from "@/lib/refresh";
 import { Sidebar, MobileSidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-
-function isJwtExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return Date.now() / 1000 >= payload.exp;
-  } catch {
-    return true;
-  }
-}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isLoading, setAuth, clearAuth, setLoading } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
+  // Cold-start auth: runs once on mount when there is no in-memory user.
   useEffect(() => {
     if (user) return;
 
@@ -28,19 +23,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         let token = localStorage.getItem("access_token");
         if (!token) { clearAuth(); router.replace("/login"); return; }
 
-        // Proactively refresh before calling /auth/me if the access token is already
-        // expired — avoids a 401 round-trip and prevents setAuth from overwriting the
-        // refreshed token with the stale one (race condition on PWA cold-start).
         if (isJwtExpired(token)) {
-          const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
-          const res = await fetch(`${base}/auth/refresh`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!res.ok) { clearAuth(); router.replace("/login"); return; }
-          const body = await res.json();
-          token = body.data.accessToken as string;
+          const newToken = await attemptRefresh();
+          if (!newToken) { clearAuth(); router.replace("/login"); return; }
+          token = newToken;
           localStorage.setItem("access_token", token);
         }
 
@@ -53,6 +39,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setLoading(false);
       }
     })();
+  }, []);
+
+  // Foreground-resume refresh: when the app comes back from background and the
+  // access token has expired, refresh it before any API call needs to.
+  useEffect(() => {
+    const handleVisibility = async () => {
+      if (document.visibilityState !== "visible" || !userRef.current) return;
+      const token = localStorage.getItem("access_token");
+      if (!token || !isJwtExpired(token)) return;
+
+      const newToken = await attemptRefresh();
+      if (newToken) {
+        localStorage.setItem("access_token", newToken);
+        setAuth(userRef.current, newToken);
+      } else {
+        clearAuth();
+        router.replace("/login");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
   if (isLoading) {

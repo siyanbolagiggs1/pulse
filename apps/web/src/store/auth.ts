@@ -5,7 +5,7 @@ import type { User } from "@/types";
 interface AuthState {
   user: User | null;
   isLoading: boolean;
-  setAuth: (user: User, token: string) => void;
+  setAuth: (user: User, token: string, refreshToken?: string) => void;
   updateUser: (user: User) => void;
   clearAuth: () => void;
   setLoading: (v: boolean) => void;
@@ -14,9 +14,10 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: true,
-  setAuth: (user, token) => {
+  setAuth: (user, token, refreshToken?) => {
     if (typeof window !== "undefined") {
       localStorage.setItem("access_token", token);
+      if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
     }
     set({ user, isLoading: false });
   },
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearAuth: () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
     }
     set({ user: null, isLoading: false });
   },

@@ -3,15 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { authApi } from "@/lib/api";
-
-function isJwtExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return Date.now() / 1000 >= payload.exp;
-  } catch {
-    return true;
-  }
-}
+import { isJwtExpired, attemptRefresh } from "@/lib/refresh";
 
 export default function Home() {
   const router = useRouter();
@@ -24,15 +16,9 @@ export default function Home() {
         if (!token) { setLoading(false); router.replace("/login"); return; }
 
         if (isJwtExpired(token)) {
-          const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
-          const res = await fetch(`${base}/auth/refresh`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!res.ok) { setLoading(false); router.replace("/login"); return; }
-          const body = await res.json();
-          token = body.data.accessToken as string;
+          const newToken = await attemptRefresh();
+          if (!newToken) { setLoading(false); router.replace("/login"); return; }
+          token = newToken;
           localStorage.setItem("access_token", token);
         }
 

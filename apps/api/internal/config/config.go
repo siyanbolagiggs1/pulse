@@ -74,8 +74,8 @@ func Load() {
 
 		JWTAccessSecret:  getEnv("JWT_ACCESS_SECRET", "access-secret-change-me"),
 		JWTRefreshSecret: getEnv("JWT_REFRESH_SECRET", "refresh-secret-change-me"),
-		JWTAccessExpiry:  getEnvInt("JWT_ACCESS_EXPIRY_MINUTES", 15),
-		JWTRefreshExpiry: getEnvInt("JWT_REFRESH_EXPIRY_DAYS", 7),
+		JWTAccessExpiry:  getEnvInt("JWT_ACCESS_EXPIRY_MINUTES", 4320),  // 3 days
+		JWTRefreshExpiry: getEnvInt("JWT_REFRESH_EXPIRY_DAYS", 30),
 
 		PaystackSecretKey: getEnv("PAYSTACK_SECRET_KEY", ""),
 		PaystackPublicKey: getEnv("PAYSTACK_PUBLIC_KEY", ""),

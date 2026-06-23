@@ -44,8 +44,9 @@ type UserResponse struct {
 }
 
 type AuthResponse struct {
-	User        UserResponse `json:"user"`
-	AccessToken string       `json:"accessToken"`
+	User         UserResponse `json:"user"`
+	AccessToken  string       `json:"accessToken"`
+	RefreshToken string       `json:"refreshToken,omitempty"`
 }
 
 func toUserResponse(u *models.User) UserResponse {

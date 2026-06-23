@@ -33,7 +33,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await authApi.login(data.email, data.password);
-      setAuth(res.data.data.user, res.data.data.accessToken);
+      setAuth(res.data.data.user, res.data.data.accessToken, res.data.data.refreshToken);
       router.push("/dashboard");
     } catch (err: any) {
       toast({ title: "Login failed", description: err?.response?.data?.message ?? "Invalid credentials", variant: "destructive" });

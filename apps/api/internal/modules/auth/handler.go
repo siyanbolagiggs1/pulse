@@ -63,8 +63,9 @@ func handleLogin(c *gin.Context) {
 	setRefreshCookie(c, refreshToken)
 
 	utils.OK(c, http.StatusOK, "Login successful", AuthResponse{
-		User:        toUserResponse(user),
-		AccessToken: accessToken,
+		User:         toUserResponse(user),
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken, // also in body so PWA can store in localStorage
 	})
 }
 
@@ -80,8 +81,17 @@ func handleLogout(c *gin.Context) {
 
 // POST /api/auth/refresh
 func handleRefresh(c *gin.Context) {
-	token, err := c.Cookie(refreshTokenCookie)
-	if err != nil || token == "" {
+	token, _ := c.Cookie(refreshTokenCookie)
+	if token == "" {
+		// PWA fallback: cookie may have been cleared by the OS battery optimiser;
+		// accept the token from the JSON body instead.
+		var body struct {
+			RefreshToken string `json:"refreshToken"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		token = body.RefreshToken
+	}
+	if token == "" {
 		utils.Fail(c, http.StatusUnauthorized, "No refresh token")
 		return
 	}
