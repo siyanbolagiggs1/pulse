@@ -8,7 +8,7 @@ import { Header } from "@/components/layout/header";
 
 function isJwtExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
     return Date.now() / 1000 >= payload.exp;
   } catch {
     return true;
