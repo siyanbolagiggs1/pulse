@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { campaignsApi, submissionsApi, usersApi } from "@/lib/api";
+import { campaignsApi, submissionsApi, usersApi, conversationsApi } from "@/lib/api";
 import type { Campaign, SocialAccount } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
@@ -26,7 +26,20 @@ export default function CampaignApplyPage() {
   const [screenshotUrl, setScreenshotUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [messaging, setMessaging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const messageOwner = async () => {
+    if (!campaign) return;
+    setMessaging(true);
+    try {
+      const res = await conversationsApi.start(campaign.businessId);
+      router.push(`/dashboard/messages/${res.data.data.id}`);
+    } catch (err: any) {
+      toast({ title: "Failed to start conversation", description: err?.response?.data?.message, variant: "destructive" });
+      setMessaging(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([campaignsApi.get(id), usersApi.getMe()])
@@ -80,10 +93,14 @@ export default function CampaignApplyPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/marketplace"><ArrowLeft className="h-4 w-4" /></Link></Button>
-        <div>
+        <div className="flex-1">
           <h2 className="text-2xl font-bold">{campaign.title}</h2>
           <p className="text-muted-foreground capitalize">{campaign.platform}</p>
         </div>
+        <Button variant="outline" size="sm" className="gap-1.5" disabled={messaging} onClick={messageOwner}>
+          <MessageCircle className="h-4 w-4" />
+          Message Owner
+        </Button>
       </div>
 
       <Card>

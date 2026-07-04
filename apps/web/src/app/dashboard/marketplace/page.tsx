@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { campaignsApi } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { campaignsApi, conversationsApi } from "@/lib/api";
 import type { Campaign } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,15 +11,28 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { Search, Users, TrendingUp } from "lucide-react";
+import { Search, Users, TrendingUp, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
 export default function MarketplacePage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [platform, setPlatform] = useState("all");
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+
+  const messageOwner = async (businessId: string, campaignId: string) => {
+    setMessagingId(campaignId);
+    try {
+      const res = await conversationsApi.start(businessId);
+      router.push(`/dashboard/messages/${res.data.data.id}`);
+    } catch (err: any) {
+      toast({ title: "Failed to start conversation", description: err?.response?.data?.message, variant: "destructive" });
+      setMessagingId(null);
+    }
+  };
 
   useEffect(() => {
     const params: Record<string, string> = {};
@@ -82,9 +96,21 @@ export default function MarketplacePage() {
                   <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{formatNumber(c.minFollowers)}+ followers</span>
                 </div>
                 <p className="text-xs text-muted-foreground">Ends {format(new Date(c.endDate), "MMM d")}</p>
-                <Button asChild className="w-full" size="sm">
-                  <Link href={`/dashboard/marketplace/${c.id}`}>View Advert</Link>
-                </Button>
+                <div className="flex gap-2">
+                  <Button asChild className="flex-1" size="sm">
+                    <Link href={`/dashboard/marketplace/${c.id}`}>View Advert</Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={messagingId === c.id}
+                    onClick={() => messageOwner(c.businessId, c.id)}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Message Owner
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
