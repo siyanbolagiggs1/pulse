@@ -69,11 +69,12 @@ export default function CampaignApplyPage() {
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!campaign) return <p>Advert not found.</p>;
 
-  const eligible = accounts.filter((a) =>
-    a.followerCount >= campaign.minFollowers &&
-    a.engagementRate >= campaign.minEngagementRate &&
-    a.influenceScore >= campaign.minInfluenceScore
-  );
+  // Only admin-verified accounts are selectable. Raw follower count and
+  // influence score aren't exposed to users, so we can't pre-filter on
+  // campaign minimums here anymore — the server enforces the real
+  // eligibility gate at submission time, surfacing a clear error if a
+  // technically-ineligible account is chosen.
+  const eligible = accounts.filter((a) => a.status === "active");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -95,7 +96,6 @@ export default function CampaignApplyPage() {
               ["Base Payout", formatCurrency(campaign.baseRepostRate)],
               ["Ends", format(new Date(campaign.endDate), "MMM d, yyyy")],
               ["Min Followers", formatNumber(campaign.minFollowers)],
-              ["Min Engagement", `${campaign.minEngagementRate}%`],
             ].map(([k, v]) => (
               <div key={k}><p className="text-muted-foreground">{k}</p><p className="font-medium">{v}</p></div>
             ))}
@@ -117,7 +117,7 @@ export default function CampaignApplyPage() {
                   <SelectContent>
                     {eligible.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
-                        @{a.username} · {formatNumber(a.followerCount)} followers · Score {a.influenceScore.toFixed(0)}
+                        @{a.username} · Tier {a.tier}
                       </SelectItem>
                     ))}
                   </SelectContent>

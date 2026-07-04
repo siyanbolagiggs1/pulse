@@ -31,7 +31,6 @@ type Campaign struct {
 	BaseRepostRate  float64 `bson:"baseRepostRate"  json:"baseRepostRate"`
 
 	MinFollowers      int64   `bson:"minFollowers"      json:"minFollowers"`
-	MinEngagementRate float64 `bson:"minEngagementRate" json:"minEngagementRate"`
 	MinInfluenceScore float64 `bson:"minInfluenceScore" json:"minInfluenceScore"`
 
 	MaxParticipants     int `bson:"maxParticipants"     json:"maxParticipants"`

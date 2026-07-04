@@ -6,6 +6,7 @@ import { authApi } from "@/lib/api";
 import { isJwtExpired, attemptRefresh } from "@/lib/refresh";
 import { Sidebar, MobileSidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { RealtimeProvider } from "@/providers/realtime";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -74,13 +75,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+    <RealtimeProvider>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar />
+        <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header onMenuClick={() => setMobileOpen(true)} />
+          <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </RealtimeProvider>
   );
 }

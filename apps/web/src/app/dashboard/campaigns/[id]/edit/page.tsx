@@ -23,7 +23,6 @@ const schema = z.object({
   targetUrl: z.string().url("Must be a valid URL"),
   baseRepostRate: z.coerce.number().min(1, "Minimum payout is $1"),
   minFollowers: z.coerce.number().min(0),
-  minEngagementRate: z.coerce.number().min(0).max(100),
   minInfluenceScore: z.coerce.number().min(0).max(100),
   maxParticipants: z.coerce.number().min(1),
   endDate: z.string().min(1, "Required"),
@@ -52,7 +51,6 @@ export default function EditCampaignPage() {
           targetUrl: c.targetUrl,
           baseRepostRate: c.baseRepostRate,
           minFollowers: c.minFollowers,
-          minEngagementRate: c.minEngagementRate,
           minInfluenceScore: c.minInfluenceScore,
           maxParticipants: c.maxParticipants,
           endDate: format(new Date(c.endDate), "yyyy-MM-dd"),
@@ -118,9 +116,8 @@ export default function EditCampaignPage() {
               {field("maxParticipants", "Max Participants", "number")}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {field("minFollowers", "Min Followers", "number")}
-              {field("minEngagementRate", "Min Engagement (%)", "number")}
               {field("minInfluenceScore", "Min Influence Score", "number")}
             </div>
 

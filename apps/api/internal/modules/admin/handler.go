@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
+	"github.com/pulse/api/internal/models"
 	"github.com/pulse/api/internal/utils"
 )
 
@@ -242,13 +243,20 @@ func handleListPendingSocialAccounts(c *gin.Context) {
 
 	resp := make([]PendingSocialAccountResponse, 0, len(accounts))
 	for _, a := range accounts {
+		history := a.FollowerHistory
+		if history == nil {
+			history = []models.FollowerHistoryEntry{}
+		}
 		resp = append(resp, PendingSocialAccountResponse{
-			ID:         a.ID.Hex(),
-			UserID:     a.UserID.Hex(),
-			Platform:   a.Platform,
-			Username:   a.Username,
-			ProfileURL: a.ProfileURL,
-			CreatedAt:  a.CreatedAt,
+			ID:              a.ID.Hex(),
+			UserID:          a.UserID.Hex(),
+			Platform:        a.Platform,
+			Username:        a.Username,
+			ProfileURL:      a.ProfileURL,
+			FollowerCount:   a.FollowerCount,
+			Tier:            a.Tier,
+			FollowerHistory: history,
+			CreatedAt:       a.CreatedAt,
 		})
 	}
 

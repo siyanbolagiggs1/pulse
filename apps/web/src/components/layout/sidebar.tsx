@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Megaphone, Store, FileText, Wallet,
-  Users, AlertTriangle, ArrowDownToLine, LogOut, UserCircle, ShieldCheck,
+  Users, AlertTriangle, ArrowDownToLine, LogOut, UserCircle, ShieldCheck, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
@@ -15,6 +15,7 @@ type NavItem = { label: string; href: string; icon: React.ElementType };
 const businessNav: NavItem[] = [
   { label: "My Adverts", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Submissions", href: "/dashboard/submissions", icon: FileText },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
   { label: "Wallet", href: "/dashboard/wallet", icon: Wallet },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
@@ -22,6 +23,7 @@ const businessNav: NavItem[] = [
 const promoterNav: NavItem[] = [
   { label: "Marketplace", href: "/dashboard/marketplace", icon: Store },
   { label: "My Submissions", href: "/dashboard/submissions", icon: FileText },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
   { label: "Wallet", href: "/dashboard/wallet", icon: Wallet },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
@@ -33,6 +35,7 @@ const adminNav: NavItem[] = [
   { label: "Fraud Flags", href: "/dashboard/admin/fraud-flags", icon: AlertTriangle },
   { label: "Withdrawals", href: "/dashboard/admin/withdrawals", icon: ArrowDownToLine },
   { label: "Social Accounts", href: "/dashboard/admin/social-accounts", icon: ShieldCheck },
+  { label: "Conversations", href: "/dashboard/admin/conversations", icon: MessageCircle },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
 

@@ -1,14 +1,11 @@
 package notifications
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
-	"github.com/pulse/api/internal/services/sse"
 	"github.com/pulse/api/internal/utils"
 )
 
@@ -64,40 +61,4 @@ func handleMarkAllAsRead(c *gin.Context) {
 		return
 	}
 	utils.OK(c, http.StatusOK, "All notifications marked as read", nil)
-}
-
-// GET /api/notifications/stream
-func handleStream(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
-
-	ch := sse.Global.Register(userID)
-	defer sse.Global.Unregister(userID)
-
-	// Initial ping so the client knows the stream is open.
-	fmt.Fprintf(c.Writer, "event: connected\ndata: {}\n\n")
-	c.Writer.Flush()
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case data, ok := <-ch:
-			if !ok {
-				return
-			}
-			fmt.Fprintf(c.Writer, "event: notification\ndata: %s\n\n", data)
-			c.Writer.Flush()
-		case <-ticker.C:
-			fmt.Fprintf(c.Writer, ": heartbeat\n\n")
-			c.Writer.Flush()
-		case <-c.Request.Context().Done():
-			return
-		}
-	}
 }

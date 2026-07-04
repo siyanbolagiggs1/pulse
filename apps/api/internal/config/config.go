@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -114,6 +115,24 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// IsAllowedOrigin mirrors the CORS origin-matching logic in router.go so
+// non-HTTP-middleware consumers (the WebSocket upgrader's CheckOrigin) share
+// the same allow-list instead of re-implementing it.
+func IsAllowedOrigin(origin string) bool {
+	clientURL := strings.TrimRight(App.ClientURL, "/")
+	if clientURL == "" || clientURL == "*" ||
+		(!strings.HasPrefix(clientURL, "http://") && !strings.HasPrefix(clientURL, "https://")) {
+		return true
+	}
+	if origin == clientURL {
+		return true
+	}
+	if strings.HasSuffix(clientURL, ".vercel.app") && strings.HasSuffix(origin, ".vercel.app") {
+		return true
+	}
+	return false
 }
 
 func getEnvFloat(key string, fallback float64) float64 {

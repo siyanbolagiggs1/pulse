@@ -17,7 +17,6 @@ type CreateCampaignRequest struct {
 	Budget            float64         `json:"budget"            binding:"required,min=10"`
 	BaseRepostRate    float64         `json:"baseRepostRate"    binding:"required,min=0.01"`
 	MinFollowers      int64           `json:"minFollowers"      binding:"min=0"`
-	MinEngagementRate float64         `json:"minEngagementRate" binding:"min=0"`
 	MinInfluenceScore float64         `json:"minInfluenceScore" binding:"min=0,max=100"`
 	MaxParticipants   int             `json:"maxParticipants"   binding:"min=0"`
 	StartDate         time.Time       `json:"startDate"         binding:"required"`
@@ -29,7 +28,6 @@ type UpdateCampaignRequest struct {
 	Description       string     `json:"description"       binding:"omitempty,min=10,max=2000"`
 	MediaAssets       []string   `json:"mediaAssets"`
 	MinFollowers      *int64     `json:"minFollowers"`
-	MinEngagementRate *float64   `json:"minEngagementRate"`
 	MinInfluenceScore *float64   `json:"minInfluenceScore"`
 	EndDate           *time.Time `json:"endDate"`
 	Status            string     `json:"status" binding:"omitempty,oneof=active paused"`
@@ -57,7 +55,6 @@ type CampaignResponse struct {
 	RemainingBudget     float64               `json:"remainingBudget"`
 	BaseRepostRate      float64               `json:"baseRepostRate"`
 	MinFollowers        int64                 `json:"minFollowers"`
-	MinEngagementRate   float64               `json:"minEngagementRate"`
 	MinInfluenceScore   float64               `json:"minInfluenceScore"`
 	MaxParticipants     int                   `json:"maxParticipants"`
 	CurrentParticipants int                   `json:"currentParticipants"`
@@ -94,7 +91,6 @@ func toCampaignResponse(c *models.Campaign) CampaignResponse {
 		RemainingBudget:     c.RemainingBudget,
 		BaseRepostRate:      c.BaseRepostRate,
 		MinFollowers:        c.MinFollowers,
-		MinEngagementRate:   c.MinEngagementRate,
 		MinInfluenceScore:   c.MinInfluenceScore,
 		MaxParticipants:     c.MaxParticipants,
 		CurrentParticipants: c.CurrentParticipants,

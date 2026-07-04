@@ -23,7 +23,6 @@ const schema = z.object({
   budget: z.coerce.number().min(50, "Minimum budget is $50"),
   baseRepostRate: z.coerce.number().min(1, "Minimum payout is $1"),
   minFollowers: z.coerce.number().min(0),
-  minEngagementRate: z.coerce.number().min(0).max(100),
   minInfluenceScore: z.coerce.number().min(0).max(100),
   maxParticipants: z.coerce.number().min(1),
   startDate: z.string().min(1, "Required"),
@@ -38,7 +37,7 @@ export default function NewCampaignPage() {
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { platform: "instagram", minFollowers: 100, minEngagementRate: 1, minInfluenceScore: 0, maxParticipants: 10 },
+    defaultValues: { platform: "instagram", minFollowers: 100, minInfluenceScore: 0, maxParticipants: 10 },
   });
 
   const onSubmit = async (data: FormData) => {
@@ -106,9 +105,8 @@ export default function NewCampaignPage() {
               {field("baseRepostRate", "Base Payout per Repost ($)", "number", "5")}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {field("minFollowers", "Min Followers", "number", "100")}
-              {field("minEngagementRate", "Min Engagement (%)", "number", "1")}
               {field("minInfluenceScore", "Min Influence Score", "number", "0")}
             </div>
 

@@ -11,13 +11,30 @@ import { ExternalLink, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
+interface FollowerHistoryEntry {
+  followerCount: number;
+  tier: number;
+  recordedAt: string;
+}
+
 interface PendingAccount {
   id: string;
   userId: string;
   platform: string;
   username: string;
   profileUrl: string;
+  followerCount: number;
+  tier: number;
+  followerHistory: FollowerHistoryEntry[];
   createdAt: string;
+}
+
+// Mirrors scoring.FollowerTier in the Go backend — for live preview only,
+// the server remains the source of truth.
+function followerTierPreview(count: number): number {
+  if (count < 100) return 0;
+  if (count <= 500) return 1;
+  return 2 + Math.floor((count - 501) / 500);
 }
 
 export default function AdminSocialAccountsPage() {
@@ -29,7 +46,7 @@ export default function AdminSocialAccountsPage() {
   const [selected, setSelected] = useState<PendingAccount | null>(null);
   const [processing, setProcessing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [stats, setStats] = useState({ followerCount: "", followingCount: "", engagementRate: "", accountAgeDays: "" });
+  const [stats, setStats] = useState({ followerCount: "" });
 
   const load = () => {
     setLoading(true);
@@ -43,7 +60,7 @@ export default function AdminSocialAccountsPage() {
 
   const openApprove = (a: PendingAccount) => {
     setSelected(a);
-    setStats({ followerCount: "", followingCount: "", engagementRate: "", accountAgeDays: "" });
+    setStats({ followerCount: "" });
     setApproveOpen(true);
   };
 
@@ -55,17 +72,13 @@ export default function AdminSocialAccountsPage() {
 
   const handleApprove = async () => {
     if (!selected) return;
-    if (!stats.followerCount || !stats.accountAgeDays) {
-      return toast({ title: "Follower count and account age are required", variant: "destructive" });
+    const count = Number(stats.followerCount);
+    if (!stats.followerCount || count < 100) {
+      return toast({ title: "Follower count must be at least 100", variant: "destructive" });
     }
     setProcessing(true);
     try {
-      await adminApi.approveSocialAccount(selected.id, {
-        followerCount: Number(stats.followerCount),
-        followingCount: Number(stats.followingCount) || 0,
-        engagementRate: Number(stats.engagementRate) || 0,
-        accountAgeDays: Number(stats.accountAgeDays),
-      });
+      await adminApi.approveSocialAccount(selected.id, { followerCount: count });
       toast({ title: "Account approved" });
       setApproveOpen(false);
       load();
@@ -142,29 +155,27 @@ export default function AdminSocialAccountsPage() {
             <DialogTitle>Approve @{selected?.username} ({selected?.platform})</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Visit their profile and enter the real stats below.
+            Visit their profile and enter their follower count below.
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Followers <span className="text-destructive">*</span></Label>
-              <Input type="number" placeholder="10000" value={stats.followerCount}
-                onChange={(e) => setStats((s) => ({ ...s, followerCount: e.target.value }))} />
+
+          {selected && selected.followerHistory?.length > 0 && (
+            <div className="rounded-md border border-border p-3 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Previous verifications (reconnect request)</p>
+              {selected.followerHistory.map((h, i) => (
+                <p key={i} className="text-xs text-muted-foreground">
+                  {h.followerCount.toLocaleString()} followers (Tier {h.tier}) — {format(new Date(h.recordedAt), "MMM d, yyyy")}
+                </p>
+              ))}
             </div>
-            <div className="space-y-1">
-              <Label>Following</Label>
-              <Input type="number" placeholder="500" value={stats.followingCount}
-                onChange={(e) => setStats((s) => ({ ...s, followingCount: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Engagement Rate (%)</Label>
-              <Input type="number" placeholder="3.5" step="0.1" value={stats.engagementRate}
-                onChange={(e) => setStats((s) => ({ ...s, engagementRate: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label>Account Age (days) <span className="text-destructive">*</span></Label>
-              <Input type="number" placeholder="365" value={stats.accountAgeDays}
-                onChange={(e) => setStats((s) => ({ ...s, accountAgeDays: e.target.value }))} />
-            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label>Followers <span className="text-destructive">*</span></Label>
+            <Input type="number" placeholder="10000" value={stats.followerCount}
+              onChange={(e) => setStats((s) => ({ ...s, followerCount: e.target.value }))} />
+            <p className="text-xs text-muted-foreground">
+              Tier: {stats.followerCount ? followerTierPreview(Number(stats.followerCount)) || "ineligible (< 100)" : "—"}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setApproveOpen(false)}>Cancel</Button>

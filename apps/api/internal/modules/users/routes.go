@@ -10,7 +10,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	{
 		u.GET("/me",                        handleGetMe)
 		u.PATCH("/me",                      handleUpdateProfile)
-		u.GET("/influence-score",           handleGetInfluenceScore)
+		u.GET("/search",                    handleSearchUsers)
 		u.POST("/social-accounts",          handleConnectSocialAccount)
 		u.DELETE("/social-accounts/:id",    handleDeleteSocialAccount)
 	}

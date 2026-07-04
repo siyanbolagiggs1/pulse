@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { formatNumber } from "@/lib/utils";
 import { Trash2, Plus, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
@@ -98,7 +97,17 @@ export default function ProfilePage() {
         username: clean,
         profileUrl: buildProfileUrl(platform, clean),
       });
-      setAccounts((prev) => [...prev, res.data.data]);
+      // A reconnect reuses the same account id (see backend), so upsert
+      // rather than append to avoid showing a duplicate row.
+      setAccounts((prev) => {
+        const idx = prev.findIndex((a) => a.id === res.data.data.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = res.data.data;
+          return next;
+        }
+        return [...prev, res.data.data];
+      });
       setConnectOpen(false);
       setUsername("");
       toast({
@@ -192,9 +201,7 @@ export default function ProfilePage() {
                       </div>
                       {a.status === "active" && (
                         <div className="flex gap-4 text-xs text-muted-foreground">
-                          <span>{formatNumber(a.followerCount)} followers</span>
-                          <span>{a.engagementRate.toFixed(1)}% engagement</span>
-                          <span>Score {a.influenceScore.toFixed(0)}</span>
+                          <span>Tier {a.tier}</span>
                         </div>
                       )}
                       {a.status === "rejected" && a.rejectedReason && (
@@ -218,6 +225,11 @@ export default function ProfilePage() {
                 ))}
               </div>
             )}
+            <p className="mt-4 text-xs text-muted-foreground">
+              Tier 1: 100–500 followers · Tier 2: 501–1,000 · Tier 3: 1,001–1,500 · Tier 4: 1,501–2,000 · and so on in 500-follower increments.
+              Gained enough followers to reach the next tier? Disconnect and reconnect your account so we can re-verify it —
+              you can request re-verification once every 30 days per account.
+            </p>
           </CardContent>
         </Card>
       )}

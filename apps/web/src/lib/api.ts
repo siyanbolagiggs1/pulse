@@ -8,6 +8,9 @@ import type {
   Transaction,
   Withdrawal,
   Notification,
+  Conversation,
+  AdminConversation,
+  ChatMessage,
 } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -37,7 +40,8 @@ export const authApi = {
 export const usersApi = {
   getMe: () => api.get<{ success: boolean; data: { user: User; socialAccounts: SocialAccount[] } }>("/users/me"),
   updateProfile: (body: { name?: string; avatar?: string }) => api.patch("/users/me", body),
-  getInfluenceScore: () => api.get("/users/influence-score"),
+  search: (q: string) =>
+    api.get<{ success: boolean; data: { id: string; name: string; avatar?: string }[] }>("/users/search", { params: { q } }),
   connectSocialAccount: (body: object) => api.post<{ success: boolean; data: SocialAccount }>("/users/social-accounts", body),
   deleteSocialAccount: (id: string) => api.delete(`/users/social-accounts/${id}`),
 };
@@ -104,7 +108,7 @@ export const adminApi = {
   listSubmissions: (params?: object) =>
     api.get<{ success: boolean; data: CampaignSubmission[]; meta: Meta }>("/submissions", { params }),
   listPendingSocialAccounts: (params?: object) => api.get("/admin/social-accounts", { params }),
-  approveSocialAccount: (id: string, stats: { followerCount: number; followingCount: number; engagementRate: number; accountAgeDays: number }) =>
+  approveSocialAccount: (id: string, stats: { followerCount: number }) =>
     api.post(`/admin/social-accounts/${id}/approve`, stats),
   rejectSocialAccount: (id: string, reason: string) =>
     api.post(`/admin/social-accounts/${id}/reject`, { reason }),
@@ -117,4 +121,27 @@ export const notificationsApi = {
     api.get<{ success: boolean; data: Notification[]; meta: Meta & { unreadCount: number } }>("/notifications", { params }),
   markRead: (id: string) => api.post(`/notifications/${id}/read`),
   markAllRead: () => api.post("/notifications/read-all"),
+};
+
+// ── Chat ─────────────────────────────────────────────────────
+
+export const conversationsApi = {
+  start: (recipientId: string) =>
+    api.post<{ success: boolean; data: Conversation }>("/conversations", { recipientId }),
+  list: (params?: object) =>
+    api.get<{ success: boolean; data: Conversation[]; meta: Meta }>("/conversations", { params }),
+  get: (id: string) => api.get<{ success: boolean; data: Conversation }>(`/conversations/${id}`),
+  getMessages: (id: string, params?: object) =>
+    api.get<{ success: boolean; data: ChatMessage[]; meta: Meta }>(`/conversations/${id}/messages`, { params }),
+  sendMessage: (id: string, body: string) =>
+    api.post<{ success: boolean; data: ChatMessage }>(`/conversations/${id}/messages`, { body }),
+  markRead: (id: string) => api.post(`/conversations/${id}/read`),
+  typing: (id: string) => api.post(`/conversations/${id}/typing`),
+};
+
+export const adminConversationsApi = {
+  list: (params?: object) =>
+    api.get<{ success: boolean; data: AdminConversation[]; meta: Meta }>("/admin/conversations", { params }),
+  getMessages: (id: string, params?: object) =>
+    api.get<{ success: boolean; data: ChatMessage[]; meta: Meta }>(`/admin/conversations/${id}/messages`, { params }),
 };

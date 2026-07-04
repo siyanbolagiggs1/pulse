@@ -121,7 +121,6 @@ func createCampaign(ctx context.Context, businessID string, req CreateCampaignRe
 		RemainingBudget:     req.Budget,
 		BaseRepostRate:      req.BaseRepostRate,
 		MinFollowers:        req.MinFollowers,
-		MinEngagementRate:   req.MinEngagementRate,
 		MinInfluenceScore:   req.MinInfluenceScore,
 		MaxParticipants:     maxParticipants,
 		CurrentParticipants: 0,
@@ -289,9 +288,6 @@ func updateCampaign(ctx context.Context, businessID, campaignID string, req Upda
 	}
 	if req.MinFollowers != nil {
 		fields["minFollowers"] = *req.MinFollowers
-	}
-	if req.MinEngagementRate != nil {
-		fields["minEngagementRate"] = *req.MinEngagementRate
 	}
 	if req.MinInfluenceScore != nil {
 		fields["minInfluenceScore"] = *req.MinInfluenceScore

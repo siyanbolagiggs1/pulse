@@ -9,7 +9,6 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	n := rg.Group("/notifications", middleware.RequireAuth())
 
 	// Static segments must come before /:id
-	n.GET("/stream", handleStream)
 	n.POST("/read-all", handleMarkAllAsRead)
 
 	n.GET("", handleListNotifications)

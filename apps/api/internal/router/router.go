@@ -7,13 +7,16 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/config"
+	"github.com/pulse/api/internal/middleware"
 	"github.com/pulse/api/internal/modules/admin"
 	"github.com/pulse/api/internal/modules/auth"
 	"github.com/pulse/api/internal/modules/campaigns"
+	"github.com/pulse/api/internal/modules/chat"
 	"github.com/pulse/api/internal/modules/notifications"
 	"github.com/pulse/api/internal/modules/submissions"
 	"github.com/pulse/api/internal/modules/users"
 	"github.com/pulse/api/internal/modules/wallet"
+	"github.com/pulse/api/internal/services/ws"
 	"github.com/pulse/api/internal/utils"
 )
 
@@ -63,6 +66,9 @@ func Setup() *gin.Engine {
 
 	api := r.Group("/api")
 
+	// Real-time WebSocket connection — carries both notifications and chat.
+	api.GET("/ws", middleware.RequireAuthWS(), ws.HandleUpgrade)
+
 	// ── Mounted modules ──────────────────────────────────────
 	auth.RegisterRoutes(api)
 	users.RegisterRoutes(api)
@@ -71,6 +77,7 @@ func Setup() *gin.Engine {
 	wallet.RegisterRoutes(api)
 	admin.RegisterRoutes(api)
 	notifications.RegisterRoutes(api)
+	chat.RegisterRoutes(api)
 
 	return r
 }

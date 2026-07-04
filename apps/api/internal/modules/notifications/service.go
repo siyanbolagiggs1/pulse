@@ -2,14 +2,13 @@ package notifications
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"time"
 
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
-	"github.com/pulse/api/internal/services/sse"
+	"github.com/pulse/api/internal/services/ws"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -41,11 +40,7 @@ func Send(ctx context.Context, userID bson.ObjectID, nType models.NotificationTy
 		n.ID = oid
 	}
 
-	data, err := json.Marshal(toNotificationResponse(&n))
-	if err != nil {
-		return
-	}
-	sse.Global.Push(userID.Hex(), string(data))
+	ws.Global.Push(userID.Hex(), ws.Envelope{Type: "notification", Data: toNotificationResponse(&n)})
 }
 
 // ── List ─────────────────────────────────────────────────────

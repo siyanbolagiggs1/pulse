@@ -11,31 +11,30 @@ import (
 
 // ── Score sub-components ─────────────────────────────────────
 // Each component has a defined ceiling; together they total 100.
-// followers(30) + engagement(25) + age(15) + completion(20) + audience(10)
+// followerTier(80) + completion(20)
 
-func ScoreFollowers(count int64) float64 {
-	if count <= 0 {
+// FollowerTier maps a raw follower count to a tier number: 100–500 followers
+// is tier 1, 501–1000 is tier 2, then +1 tier per +500 followers thereafter.
+// Below 100 followers there is no tier (0) — admin approval requires >=100.
+func FollowerTier(followerCount int64) int {
+	if followerCount < 100 {
 		return 0
 	}
-	return math.Min(30, (math.Log10(float64(count)+1)/6)*30)
+	if followerCount <= 500 {
+		return 1
+	}
+	return 2 + int((followerCount-501)/500)
 }
 
-func ScoreEngagement(rate float64) float64 {
-	return math.Min(25, (rate/5.0)*25)
-}
-
-func ScoreAge(days int) float64 {
-	return math.Min(15, (float64(days)/365.0)*15)
-}
-
-func ScoreAudienceQuality(followers, following int64) float64 {
-	if following == 0 {
-		if followers > 0 {
-			return 10
-		}
+// ScoreFollowerTier converts a tier into the 0–80 point follower component.
+// Uses a log curve (diminishing returns per tier, mirroring the previous
+// per-follower log10 curve's shape) that saturates at the 80-point cap
+// around tier 20 (~10k followers).
+func ScoreFollowerTier(tier int) float64 {
+	if tier <= 0 {
 		return 0
 	}
-	return math.Min(10, (float64(followers)/float64(following))*10)
+	return math.Min(80, (math.Log10(float64(tier)+1)/math.Log10(21))*80)
 }
 
 func Round2(v float64) float64 {
@@ -72,13 +71,7 @@ func ComputeCompletionScore(ctx context.Context, promoterObjID bson.ObjectID) fl
 // including the dynamic completion score derived from the promoter's submission history.
 func ComputeFullScore(ctx context.Context, acc *models.SocialAccount, promoterObjID bson.ObjectID) float64 {
 	cs := ComputeCompletionScore(ctx, promoterObjID)
-	return Round2(
-		ScoreFollowers(acc.FollowerCount) +
-			ScoreEngagement(acc.EngagementRate) +
-			ScoreAge(acc.AccountAge) +
-			ScoreAudienceQuality(acc.FollowerCount, acc.FollowingCount) +
-			cs,
-	)
+	return Round2(ScoreFollowerTier(acc.Tier) + cs)
 }
 
 // ── Score persistence ────────────────────────────────────────
@@ -102,13 +95,7 @@ func RefreshAllAccounts(ctx context.Context, promoterObjID bson.ObjectID) {
 	}
 
 	for _, acc := range accounts {
-		score := Round2(
-			ScoreFollowers(acc.FollowerCount) +
-				ScoreEngagement(acc.EngagementRate) +
-				ScoreAge(acc.AccountAge) +
-				ScoreAudienceQuality(acc.FollowerCount, acc.FollowingCount) +
-				cs,
-		)
+		score := Round2(ScoreFollowerTier(acc.Tier) + cs)
 		_, _ = col.UpdateOne(ctx,
 			bson.M{"_id": acc.ID},
 			bson.M{"$set": bson.M{"influenceScore": score}},

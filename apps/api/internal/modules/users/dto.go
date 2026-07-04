@@ -19,30 +19,19 @@ type ConnectSocialAccountRequest struct {
 	ProfileURL string          `json:"profileUrl" binding:"required,url"`
 }
 
-type ApproveSocialAccountRequest struct {
-	FollowerCount  int64   `json:"followerCount"  binding:"required,min=0"`
-	FollowingCount int64   `json:"followingCount" binding:"min=0"`
-	EngagementRate float64 `json:"engagementRate" binding:"min=0"`
-	AccountAgeDays int     `json:"accountAgeDays" binding:"required,min=1"`
-}
-
 // ── Responses ────────────────────────────────────────────────
 
 type SocialAccountResponse struct {
-	ID             string                      `json:"id"`
-	Platform       models.Platform             `json:"platform"`
-	PlatformUserID string                      `json:"platformUserId"`
-	Username       string                      `json:"username"`
-	ProfileURL     string                      `json:"profileUrl"`
-	FollowerCount  int64                       `json:"followerCount"`
-	FollowingCount int64                       `json:"followingCount"`
-	EngagementRate float64                     `json:"engagementRate"`
-	AccountAgeDays int                         `json:"accountAgeDays"`
-	InfluenceScore float64                     `json:"influenceScore"`
-	IsVerified     bool                        `json:"isVerified"`
-	Status         models.SocialAccountStatus  `json:"status"`
-	RejectedReason string                      `json:"rejectedReason,omitempty"`
-	LastSyncedAt   time.Time                   `json:"lastSyncedAt"`
+	ID             string                     `json:"id"`
+	Platform       models.Platform            `json:"platform"`
+	PlatformUserID string                     `json:"platformUserId"`
+	Username       string                     `json:"username"`
+	ProfileURL     string                     `json:"profileUrl"`
+	Tier           int                        `json:"tier"`
+	IsVerified     bool                       `json:"isVerified"`
+	Status         models.SocialAccountStatus `json:"status"`
+	RejectedReason string                     `json:"rejectedReason,omitempty"`
+	LastSyncedAt   time.Time                  `json:"lastSyncedAt"`
 }
 
 type UserResponse struct {
@@ -59,21 +48,16 @@ type UserResponse struct {
 	CreatedAt       time.Time                  `json:"createdAt"`
 }
 
-type AccountInfluenceScore struct {
-	AccountID         string          `json:"accountId"`
-	Platform          models.Platform `json:"platform"`
-	Username          string          `json:"username"`
-	OverallScore      float64         `json:"overallScore"`
-	FollowerScore     float64         `json:"followerScore"`
-	EngagementScore   float64         `json:"engagementScore"`
-	AccountAgeScore   float64         `json:"accountAgeScore"`
-	CompletionScore   float64         `json:"completionScore"`
-	AudienceQualScore float64         `json:"audienceQualityScore"`
+// SearchUserResponse is the minimal shape returned by the recipient-search
+// endpoint — no email/trustScore/etc., just enough to pick a chat recipient.
+type SearchUserResponse struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"`
 }
 
-type InfluenceScoreResponse struct {
-	Accounts  []AccountInfluenceScore `json:"accounts"`
-	BestScore float64                 `json:"bestScore"`
+func toSearchUserResponse(u *models.User) SearchUserResponse {
+	return SearchUserResponse{ID: u.ID.Hex(), Name: u.Name, Avatar: u.Avatar}
 }
 
 // ── Mappers ──────────────────────────────────────────────────
@@ -111,11 +95,7 @@ func toSocialAccountResponse(a *models.SocialAccount) SocialAccountResponse {
 		PlatformUserID: a.PlatformUserID,
 		Username:       a.Username,
 		ProfileURL:     a.ProfileURL,
-		FollowerCount:  a.FollowerCount,
-		FollowingCount: a.FollowingCount,
-		EngagementRate: a.EngagementRate,
-		AccountAgeDays: a.AccountAge,
-		InfluenceScore: a.InfluenceScore,
+		Tier:           a.Tier,
 		IsVerified:     a.IsVerified,
 		Status:         a.Status,
 		RejectedReason: a.RejectedReason,

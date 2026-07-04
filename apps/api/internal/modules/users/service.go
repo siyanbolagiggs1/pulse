@@ -3,24 +3,26 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
-	"github.com/pulse/api/internal/services/scoring"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+const reconnectCooldown = 30 * 24 * time.Hour
+
 var (
 	ErrUserNotFound           = errors.New("user not found")
 	ErrAccountNotFound        = errors.New("social account not found")
-	ErrAccountAgeTooLow       = errors.New("account must be at least 30 days old to be eligible")
 	ErrDuplicatePlatform      = errors.New("a social account for this platform is already connected")
 	ErrDuplicateSocialAccount = errors.New("this social account is already connected to another user")
+	ErrCooldownActive         = errors.New("you can request re-verification once every 30 days")
 )
 
 func getMe(ctx context.Context, userID string) (*models.User, []models.SocialAccount, error) {
@@ -105,10 +107,15 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 
 	var existing models.SocialAccount
 
-	// Check: this user already has an account on this platform.
+	// Check: this user already has an account on this platform (active or
+	// soft-disconnected — the unique userId+platform index guarantees at
+	// most one document either way).
 	err = col.FindOne(ctx, bson.M{"userId": objID, "platform": req.Platform}).Decode(&existing)
 	if err == nil {
-		return nil, ErrDuplicatePlatform
+		if existing.DisconnectedAt == nil {
+			return nil, ErrDuplicatePlatform
+		}
+		return reconnectSocialAccount(ctx, col, &existing, profileURL, username)
 	}
 	if !errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
@@ -116,14 +123,7 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 
 	// Check: another user already linked this profile URL.
 	// Case-insensitive + optional trailing slash to catch old records stored with different formatting.
-	urlPattern := "^" + regexp.QuoteMeta(profileURL) + "/?$"
-	err = col.FindOne(ctx, bson.M{
-		"profileUrl": bson.Regex{Pattern: urlPattern, Options: "i"},
-	}).Decode(&existing)
-	if err == nil {
-		return nil, ErrDuplicateSocialAccount
-	}
-	if !errors.Is(err, mongo.ErrNoDocuments) {
+	if err := findProfileURLCollision(ctx, col, profileURL, nil); err != nil {
 		return nil, err
 	}
 
@@ -151,6 +151,104 @@ func connectSocialAccount(ctx context.Context, userID string, req ConnectSocialA
 	return &acc, nil
 }
 
+// findProfileURLCollision returns ErrDuplicateSocialAccount if profileURL is
+// already claimed by a different document (excludeID, if non-nil, is skipped
+// so a reconnecting account doesn't collide with its own unchanged URL).
+func findProfileURLCollision(ctx context.Context, col *mongo.Collection, profileURL string, excludeID *bson.ObjectID) error {
+	urlPattern := "^" + regexp.QuoteMeta(profileURL) + "/?$"
+	filter := bson.M{"profileUrl": bson.Regex{Pattern: urlPattern, Options: "i"}}
+	if excludeID != nil {
+		filter["_id"] = bson.M{"$ne": *excludeID}
+	}
+
+	var existing models.SocialAccount
+	err := col.FindOne(ctx, filter).Decode(&existing)
+	if err == nil {
+		return ErrDuplicateSocialAccount
+	}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return err
+	}
+	return nil
+}
+
+// reconnectSocialAccount handles a connect request for a social account the
+// user previously soft-disconnected. Enforces a cooldown since the last
+// admin-verified follower count, then reuses the same document (preserving
+// FollowerCount/Tier/InfluenceScore/FollowerHistory) rather than inserting a
+// new one, sending it back into the admin review queue.
+func reconnectSocialAccount(ctx context.Context, col *mongo.Collection, existing *models.SocialAccount, profileURL, username string) (*models.SocialAccount, error) {
+	if existing.LastVerifiedAt != nil {
+		elapsed := time.Since(*existing.LastVerifiedAt)
+		if elapsed < reconnectCooldown {
+			nextEligible := existing.LastVerifiedAt.Add(reconnectCooldown)
+			return nil, fmt.Errorf("%w — next eligible %s", ErrCooldownActive, nextEligible.Format("2006-01-02"))
+		}
+	}
+
+	if err := findProfileURLCollision(ctx, col, profileURL, &existing.ID); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	_, err := col.UpdateOne(ctx,
+		bson.M{"_id": existing.ID},
+		bson.M{"$set": bson.M{
+			"status":         models.SocialAccountPending,
+			"username":       username,
+			"platformUserId": username,
+			"profileUrl":     profileURL,
+			"disconnectedAt": nil,
+			"lastSyncedAt":   now,
+		}},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = col.FindOne(ctx, bson.M{"_id": existing.ID}).Decode(existing)
+	return existing, nil
+}
+
+// searchUsers powers the chat recipient picker. It always forces the
+// returned role to be the opposite of the caller's own role — a business can
+// only ever find promoters and vice versa — regardless of anything the
+// caller might pass in. Callers of any other role (i.e. admin, who doesn't
+// participate in chat) get an empty result.
+func searchUsers(ctx context.Context, callerRole, query string, limit int) ([]models.User, error) {
+	if limit < 1 || limit > 20 {
+		limit = 20
+	}
+
+	var targetRole models.Role
+	switch callerRole {
+	case string(models.RoleBusiness):
+		targetRole = models.RolePromoter
+	case string(models.RolePromoter):
+		targetRole = models.RoleBusiness
+	default:
+		return []models.User{}, nil
+	}
+
+	filter := bson.M{"role": targetRole, "isSuspended": false}
+	if query != "" {
+		filter["name"] = bson.M{"$regex": query, "$options": "i"}
+	}
+
+	cursor, err := database.GetCollection(models.UsersCollection).Find(ctx, filter,
+		options.Find().SetLimit(int64(limit)).SetSort(bson.D{{Key: "name", Value: 1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []models.User
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func deleteSocialAccount(ctx context.Context, userID, accountID string) error {
 	userObjID, err := bson.ObjectIDFromHex(userID)
 	if err != nil {
@@ -161,64 +259,17 @@ func deleteSocialAccount(ctx context.Context, userID, accountID string) error {
 		return ErrAccountNotFound
 	}
 
+	now := time.Now().UTC()
 	result, err := database.GetCollection(models.SocialAccountsCollection).
-		DeleteOne(ctx, bson.M{"_id": accObjID, "userId": userObjID})
+		UpdateOne(ctx,
+			bson.M{"_id": accObjID, "userId": userObjID},
+			bson.M{"$set": bson.M{"disconnectedAt": now}},
+		)
 	if err != nil {
 		return err
 	}
-	if result.DeletedCount == 0 {
+	if result.MatchedCount == 0 {
 		return ErrAccountNotFound
 	}
 	return nil
-}
-
-func getInfluenceScore(ctx context.Context, userID string) (*InfluenceScoreResponse, error) {
-	objID, err := bson.ObjectIDFromHex(userID)
-	if err != nil {
-		return nil, ErrUserNotFound
-	}
-
-	cursor, err := database.GetCollection(models.SocialAccountsCollection).
-		Find(ctx, bson.M{"userId": objID})
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var accounts []models.SocialAccount
-	if err := cursor.All(ctx, &accounts); err != nil {
-		return nil, err
-	}
-
-	resp := &InfluenceScoreResponse{
-		Accounts: make([]AccountInfluenceScore, 0, len(accounts)),
-	}
-
-	// Completion score is per-promoter, not per-account — compute once.
-	cs := scoring.ComputeCompletionScore(ctx, objID)
-
-	for _, acc := range accounts {
-		fs := scoring.ScoreFollowers(acc.FollowerCount)
-		es := scoring.ScoreEngagement(acc.EngagementRate)
-		as := scoring.ScoreAge(acc.AccountAge)
-		qs := scoring.ScoreAudienceQuality(acc.FollowerCount, acc.FollowingCount)
-
-		overall := scoring.Round2(fs + es + as + cs + qs)
-		resp.Accounts = append(resp.Accounts, AccountInfluenceScore{
-			AccountID:         acc.ID.Hex(),
-			Platform:          acc.Platform,
-			Username:          acc.Username,
-			OverallScore:      overall,
-			FollowerScore:     scoring.Round2(fs),
-			EngagementScore:   scoring.Round2(es),
-			AccountAgeScore:   scoring.Round2(as),
-			CompletionScore:   scoring.Round2(cs),
-			AudienceQualScore: scoring.Round2(qs),
-		})
-		if overall > resp.BestScore {
-			resp.BestScore = overall
-		}
-	}
-
-	return resp, nil
 }

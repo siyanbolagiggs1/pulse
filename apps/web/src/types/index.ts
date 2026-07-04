@@ -31,11 +31,7 @@ export interface SocialAccount {
   platformUserId: string;
   username: string;
   profileUrl: string;
-  followerCount: number;
-  followingCount: number;
-  engagementRate: number;
-  accountAgeDays: number;
-  influenceScore: number;
+  tier: number;
   isVerified: boolean;
   status: "pending_review" | "active" | "rejected";
   rejectedReason?: string;
@@ -57,7 +53,6 @@ export interface Campaign {
   remainingBudget: number;
   baseRepostRate: number;
   minFollowers: number;
-  minEngagementRate: number;
   minInfluenceScore: number;
   maxParticipants: number;
   currentParticipants: number;
@@ -143,6 +138,41 @@ export interface Notification {
   message: string;
   isRead: boolean;
   metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+// ── Chat ─────────────────────────────────────────────────────
+
+export interface UserSummary {
+  id: string;
+  name: string;
+  avatar?: string;
+  role: Role;
+}
+
+export interface Conversation {
+  id: string;
+  otherParty: UserSummary;
+  lastMessageAt: string;
+  lastMessagePreview: string;
+  unreadCount: number;
+  createdAt: string;
+}
+
+export interface AdminConversation {
+  id: string;
+  business: UserSummary;
+  promoter: UserSummary;
+  lastMessageAt: string;
+  lastMessagePreview: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
   createdAt: string;
 }
 

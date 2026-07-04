@@ -4,7 +4,7 @@ import { Bell, Download, Menu } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth";
-import { useSSE } from "@/hooks/use-sse";
+import { useRealtime } from "@/providers/realtime";
 import { usePWAInstall } from "@/hooks/use-pwa-install";
 import { notificationsApi } from "@/lib/api";
 import type { Notification } from "@/types";
@@ -34,7 +34,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     setUnread((c) => c + 1);
   }, []);
 
-  useSSE(handleNotification);
+  const { subscribe } = useRealtime();
+  useEffect(() => subscribe("notification", handleNotification as (d: unknown) => void), [subscribe, handleNotification]);
 
   const markAllRead = async () => {
     try {

@@ -24,6 +24,7 @@ func CreateIndexes() {
 	createNotificationIndexes(ctx)
 	createFraudFlagIndexes(ctx)
 	createSocialAccountIndexes(ctx)
+	createChatIndexes(ctx)
 
 	log.Println("MongoDB indexes ensured")
 }
@@ -172,6 +173,36 @@ func createSocialAccountIndexes(ctx context.Context) {
 		},
 	}
 	mustCreateIndexes(ctx, col, indexes, "social_accounts")
+}
+
+func createChatIndexes(ctx context.Context) {
+	convCol := GetCollection(models.ConversationsCollection)
+	convIndexes := []mongo.IndexModel{
+		// One conversation per business+promoter pair — also powers the
+		// upsert-based get-or-create in chat.startOrGetConversation.
+		{
+			Keys:    bson.D{{Key: "businessId", Value: 1}, {Key: "promoterId", Value: 1}},
+			Options: options.Index().SetUnique(true).SetName("business_promoter_unique"),
+		},
+		{
+			Keys:    bson.D{{Key: "businessId", Value: 1}, {Key: "lastMessageAt", Value: -1}},
+			Options: options.Index().SetName("business_last_message"),
+		},
+		{
+			Keys:    bson.D{{Key: "promoterId", Value: 1}, {Key: "lastMessageAt", Value: -1}},
+			Options: options.Index().SetName("promoter_last_message"),
+		},
+	}
+	mustCreateIndexes(ctx, convCol, convIndexes, "conversations")
+
+	msgCol := GetCollection(models.MessagesCollection)
+	msgIndexes := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "conversationId", Value: 1}, {Key: "createdAt", Value: -1}},
+			Options: options.Index().SetName("conversation_created_at"),
+		},
+	}
+	mustCreateIndexes(ctx, msgCol, msgIndexes, "messages")
 }
 
 func mustCreateIndexes(ctx context.Context, col *mongo.Collection, indexes []mongo.IndexModel, name string) {

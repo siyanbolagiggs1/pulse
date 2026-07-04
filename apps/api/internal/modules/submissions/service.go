@@ -100,7 +100,6 @@ func createSubmission(ctx context.Context, promoterID string, req CreateSubmissi
 
 	// Eligibility requirements.
 	if account.FollowerCount < campaign.MinFollowers ||
-		account.EngagementRate < campaign.MinEngagementRate ||
 		account.InfluenceScore < campaign.MinInfluenceScore {
 		return nil, ErrEligibility
 	}

@@ -518,25 +518,37 @@ func approveSocialAccount(ctx context.Context, accountID string, req ApproveSoci
 		return nil, err
 	}
 
+	tier := scoring.FollowerTier(req.FollowerCount)
+
 	acc.FollowerCount = req.FollowerCount
-	acc.FollowingCount = req.FollowingCount
-	acc.EngagementRate = req.EngagementRate
-	acc.AccountAge = req.AccountAgeDays
+	acc.Tier = tier
 	acc.Status = models.SocialAccountActive
 	acc.InfluenceScore = scoring.ComputeFullScore(ctx, &acc, acc.UserID)
 
 	now := time.Now().UTC()
+	historyEntry := models.FollowerHistoryEntry{
+		FollowerCount: req.FollowerCount,
+		Tier:          tier,
+		RecordedAt:    now,
+	}
+	acc.LastVerifiedAt = &now
+	acc.DisconnectedAt = nil
+	acc.FollowerHistory = append(acc.FollowerHistory, historyEntry)
+
 	_, err = col.UpdateOne(ctx,
 		bson.M{"_id": accObjID},
-		bson.M{"$set": bson.M{
-			"status":         models.SocialAccountActive,
-			"followerCount":  req.FollowerCount,
-			"followingCount": req.FollowingCount,
-			"engagementRate": req.EngagementRate,
-			"accountAgeDays": req.AccountAgeDays,
-			"influenceScore": acc.InfluenceScore,
-			"lastSyncedAt":   now,
-		}},
+		bson.M{
+			"$set": bson.M{
+				"status":         models.SocialAccountActive,
+				"followerCount":  req.FollowerCount,
+				"tier":           tier,
+				"influenceScore": acc.InfluenceScore,
+				"lastVerifiedAt": now,
+				"lastSyncedAt":   now,
+				"disconnectedAt": nil,
+			},
+			"$push": bson.M{"followerHistory": historyEntry},
+		},
 	)
 	if err != nil {
 		return nil, err

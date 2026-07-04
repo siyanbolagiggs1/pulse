@@ -38,17 +38,6 @@ func handleUpdateProfile(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "Profile updated", toUserResponse(user, nil))
 }
 
-// GET /api/users/influence-score
-func handleGetInfluenceScore(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	score, err := getInfluenceScore(c.Request.Context(), userID)
-	if err != nil {
-		utils.Fail(c, http.StatusInternalServerError, "Failed to compute influence score")
-		return
-	}
-	utils.OK(c, http.StatusOK, "", score)
-}
-
 // POST /api/users/social-accounts
 func handleConnectSocialAccount(c *gin.Context) {
 	var req ConnectSocialAccountRequest
@@ -61,9 +50,7 @@ func handleConnectSocialAccount(c *gin.Context) {
 	acc, err := connectSocialAccount(c.Request.Context(), userID, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrAccountAgeTooLow):
-			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrDuplicatePlatform), errors.Is(err, ErrDuplicateSocialAccount):
+		case errors.Is(err, ErrDuplicatePlatform), errors.Is(err, ErrDuplicateSocialAccount), errors.Is(err, ErrCooldownActive):
 			utils.Fail(c, http.StatusConflict, err.Error())
 		default:
 			utils.Fail(c, http.StatusInternalServerError, err.Error())
@@ -72,6 +59,21 @@ func handleConnectSocialAccount(c *gin.Context) {
 	}
 
 	utils.OK(c, http.StatusCreated, "Social account connected", toSocialAccountResponse(acc))
+}
+
+// GET /api/users/search
+func handleSearchUsers(c *gin.Context) {
+	users, err := searchUsers(c.Request.Context(), middleware.GetUserRole(c), c.Query("q"), 20)
+	if err != nil {
+		utils.Fail(c, http.StatusInternalServerError, "Search failed")
+		return
+	}
+
+	resp := make([]SearchUserResponse, 0, len(users))
+	for i := range users {
+		resp = append(resp, toSearchUserResponse(&users[i]))
+	}
+	utils.OK(c, http.StatusOK, "", resp)
 }
 
 // DELETE /api/users/social-accounts/:id

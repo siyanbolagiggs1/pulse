@@ -17,10 +17,7 @@ type RejectWithdrawalRequest struct {
 }
 
 type ApproveSocialAccountRequest struct {
-	FollowerCount  int64   `json:"followerCount"  binding:"required,min=0"`
-	FollowingCount int64   `json:"followingCount" binding:"min=0"`
-	EngagementRate float64 `json:"engagementRate" binding:"min=0"`
-	AccountAgeDays int     `json:"accountAgeDays" binding:"required,min=1"`
+	FollowerCount int64 `json:"followerCount" binding:"required,min=100"`
 }
 
 type RejectSocialAccountRequest struct {
@@ -28,12 +25,15 @@ type RejectSocialAccountRequest struct {
 }
 
 type PendingSocialAccountResponse struct {
-	ID         string          `json:"id"`
-	UserID     string          `json:"userId"`
-	Platform   models.Platform `json:"platform"`
-	Username   string          `json:"username"`
-	ProfileURL string          `json:"profileUrl"`
-	CreatedAt  time.Time       `json:"createdAt"`
+	ID              string                        `json:"id"`
+	UserID          string                        `json:"userId"`
+	Platform        models.Platform               `json:"platform"`
+	Username        string                        `json:"username"`
+	ProfileURL      string                        `json:"profileUrl"`
+	FollowerCount   int64                         `json:"followerCount"`
+	Tier            int                           `json:"tier"`
+	FollowerHistory []models.FollowerHistoryEntry `json:"followerHistory"`
+	CreatedAt       time.Time                     `json:"createdAt"`
 }
 
 // ── Query params ─────────────────────────────────────────────

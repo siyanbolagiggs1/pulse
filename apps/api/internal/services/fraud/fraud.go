@@ -2,7 +2,6 @@ package fraud
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/pulse/api/internal/database"
@@ -40,25 +39,12 @@ func FlagUser(ctx context.Context, userID bson.ObjectID, reason models.FraudFlag
 }
 
 // CheckSubmission runs fraud heuristics against the social account used in a submission.
-// Detected violations are flagged asynchronously so this call never blocks the request.
+// Currently a no-op placeholder: the follower:following ratio and engagement-rate
+// implausibility checks were removed when the platform switched from self-reported
+// stats to admin-verified follower-tier scoring (those two signals no longer exist
+// on SocialAccount). Retained as a hook for future heuristics — e.g. a "suspicious
+// follower jump" check using SocialAccount.FollowerHistory.
 func CheckSubmission(ctx context.Context, promoterObjID bson.ObjectID, acc *models.SocialAccount) {
-	// Follower:following ratio below 0.2 — typical of follow-churn / follow-spam accounts.
-	if acc.FollowingCount > 0 {
-		ratio := float64(acc.FollowerCount) / float64(acc.FollowingCount)
-		if ratio < 0.2 {
-			go FlagUser(context.Background(), promoterObjID, models.FraudLowFollowerRatio,
-				fmt.Sprintf("follower:following ratio %.2f (followers=%d, following=%d)",
-					ratio, acc.FollowerCount, acc.FollowingCount))
-		}
-	}
-
-	// Engagement rate above 50% on an account with more than 10k followers is
-	// statistically implausible — almost certainly inflated by bots or pods.
-	if acc.FollowerCount > 10_000 && acc.EngagementRate > 50 {
-		go FlagUser(context.Background(), promoterObjID, models.FraudAbnormalEngagement,
-			fmt.Sprintf("engagement rate %.1f%% with %d followers exceeds plausible ceiling",
-				acc.EngagementRate, acc.FollowerCount))
-	}
 }
 
 // CheckAccount runs the same fraud heuristics when a social account is first connected.
