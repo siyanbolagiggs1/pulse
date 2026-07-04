@@ -25,7 +25,7 @@ export default function MessagesPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const { subscribe } = useRealtime();
+  const { subscribe, refreshUnreadMessages } = useRealtime();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -33,7 +33,8 @@ export default function MessagesPage() {
       .then((r) => setConversations(r.data.data ?? []))
       .catch(() => toast({ title: "Failed to load conversations", variant: "destructive" }))
       .finally(() => setLoading(false));
-  }, []);
+    refreshUnreadMessages();
+  }, [refreshUnreadMessages]);
 
   useEffect(() => { load(); }, [load]);
 

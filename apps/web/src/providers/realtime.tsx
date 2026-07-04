@@ -9,12 +9,15 @@ import {
   useState,
 } from "react";
 import { useAuthStore } from "@/store/auth";
+import { conversationsApi } from "@/lib/api";
 
 type Listener = (data: unknown) => void;
 
 interface RealtimeContextValue {
   subscribe: (eventType: string, callback: Listener) => () => void;
   connected: boolean;
+  unreadMessages: number;
+  refreshUnreadMessages: () => void;
 }
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
@@ -32,6 +35,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const listenersRef = useRef<Map<string, Set<Listener>>>(new Map());
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const subscribe = useCallback((eventType: string, callback: Listener) => {
     const listeners = listenersRef.current;
@@ -41,6 +45,35 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       listeners.get(eventType)?.delete(callback);
     };
   }, []);
+
+  // Total unread count across every conversation — the source of truth is
+  // always a server refetch (cheap, and avoids client-side drift); live
+  // "chat_message" events just bump the count optimistically in between.
+  const refreshUnreadMessages = useCallback(() => {
+    if (!user) return;
+    conversationsApi.list({ limit: 50 })
+      .then((r) => {
+        const total = (r.data.data ?? []).reduce((sum, c) => sum + c.unreadCount, 0);
+        setUnreadMessages(total);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadMessages(0);
+      return;
+    }
+    refreshUnreadMessages();
+  }, [user, refreshUnreadMessages]);
+
+  useEffect(() => {
+    return subscribe("chat_message", ((data: { senderId: string }) => {
+      if (data.senderId !== user?.id) {
+        setUnreadMessages((c) => c + 1);
+      }
+    }) as Listener);
+  }, [subscribe, user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -94,7 +127,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user]);
 
-  const value = useMemo(() => ({ subscribe, connected }), [subscribe, connected]);
+  const value = useMemo(
+    () => ({ subscribe, connected, unreadMessages, refreshUnreadMessages }),
+    [subscribe, connected, unreadMessages, refreshUnreadMessages]
+  );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }

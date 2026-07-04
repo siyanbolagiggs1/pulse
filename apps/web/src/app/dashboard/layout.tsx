@@ -6,6 +6,7 @@ import { authApi } from "@/lib/api";
 import { isJwtExpired, attemptRefresh } from "@/lib/refresh";
 import { Sidebar, MobileSidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { FloatingMessageButton } from "@/components/layout/floating-message-button";
 import { RealtimeProvider } from "@/providers/realtime";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -84,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
         </div>
       </div>
+      <FloatingMessageButton />
     </RealtimeProvider>
   );
 }

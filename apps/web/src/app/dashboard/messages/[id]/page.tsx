@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 export default function ConversationThreadPage() {
   const { id } = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
-  const { subscribe } = useRealtime();
+  const { subscribe, refreshUnreadMessages } = useRealtime();
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -40,8 +40,8 @@ export default function ConversationThreadPage() {
       })
       .catch(() => toast({ title: "Failed to load conversation", variant: "destructive" }))
       .finally(() => setLoading(false));
-    conversationsApi.markRead(id).catch(() => {});
-  }, [id]);
+    conversationsApi.markRead(id).catch(() => {}).finally(refreshUnreadMessages);
+  }, [id, refreshUnreadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,10 +52,10 @@ export default function ConversationThreadPage() {
       if (msg.conversationId !== id) return;
       setMessages((prev) => [...prev, msg]);
       if (msg.senderId !== user?.id) {
-        conversationsApi.markRead(id).catch(() => {});
+        conversationsApi.markRead(id).catch(() => {}).finally(refreshUnreadMessages);
       }
     }) as (d: unknown) => void);
-  }, [subscribe, id, user?.id]);
+  }, [subscribe, id, user?.id, refreshUnreadMessages]);
 
   useEffect(() => {
     return subscribe("typing", ((data: { conversationId: string; userId: string }) => {

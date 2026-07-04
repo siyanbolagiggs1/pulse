@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { authApi } from "@/lib/api";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useRealtime } from "@/providers/realtime";
 
 type NavItem = { label: string; href: string; icon: React.ElementType };
 
@@ -44,6 +45,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const { unreadMessages } = useRealtime();
 
   const nav = user?.role === "admin" ? adminNav : user?.role === "business" ? businessNav : promoterNav;
 
@@ -76,7 +78,12 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
             )}
           >
             <Icon className="h-4 w-4" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {href === "/dashboard/messages" && unreadMessages > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium text-primary-foreground">
+                {unreadMessages > 9 ? "9+" : unreadMessages}
+              </span>
+            )}
           </Link>
         ))}
       </nav>
