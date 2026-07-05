@@ -22,6 +22,7 @@ var (
 	ErrUserSuspended        = errors.New("cannot start a conversation with a suspended user")
 	ErrConversationNotFound = errors.New("conversation not found")
 	ErrNotParticipant       = errors.New("you are not a participant in this conversation")
+	ErrSupportNotConfigured = errors.New("support chat is not available right now")
 )
 
 const welcomeMessageBody = "Welcome to Pulse! If you ever run into issues, have feedback, or just want to flag something, feel free to message us right here — we read every message."
@@ -69,6 +70,42 @@ func startOrGetConversation(ctx context.Context, callerID, callerRole, recipient
 		CreatedAt:          conv.CreatedAt,
 	}
 	return &resp, nil
+}
+
+// startSupportConversation is the "Help" button's entry point — it resolves
+// the configured support admin itself, so the caller (a business or
+// promoter) never needs to know or look up that account's ID the way
+// startOrGetConversation's caller-supplied recipientID does.
+func startSupportConversation(ctx context.Context, callerID, callerRole string) (*ConversationResponse, error) {
+	if config.App.SupportAdminEmail == "" {
+		return nil, ErrSupportNotConfigured
+	}
+	callerObjID, err := bson.ObjectIDFromHex(callerID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	var supportAdmin models.User
+	if err := database.GetCollection(models.UsersCollection).
+		FindOne(ctx, bson.M{"email": config.App.SupportAdminEmail}).Decode(&supportAdmin); err != nil {
+		return nil, ErrSupportNotConfigured
+	}
+	if supportAdmin.Role != models.RoleAdmin {
+		return nil, ErrSupportNotConfigured
+	}
+	if callerObjID == supportAdmin.ID {
+		return nil, ErrInvalidRecipient
+	}
+	if !isValidPair(callerRole, string(models.RoleAdmin)) {
+		return nil, ErrInvalidRecipient
+	}
+
+	conv, err := getOrCreateConversation(ctx, callerObjID, supportAdmin.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return getConversation(ctx, conv.ID.Hex(), callerID)
 }
 
 // canonicalOrder returns (a, b) such that a's hex ObjectID string sorts

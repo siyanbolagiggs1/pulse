@@ -4,13 +4,15 @@ import { useRouter } from "next/navigation";
 import { conversationsApi, usersApi } from "@/lib/api";
 import type { Conversation, ChatMessage } from "@/types";
 import { useRealtime } from "@/providers/realtime";
+import { useAuthStore } from "@/store/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
-import { Search } from "lucide-react";
+import { Search, LifeBuoy } from "lucide-react";
 
 interface SearchResult {
   id: string;
@@ -20,11 +22,13 @@ interface SearchResult {
 
 export default function MessagesPage() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [gettingHelp, setGettingHelp] = useState(false);
   const { subscribe, refreshUnreadMessages } = useRealtime();
 
   const load = useCallback(() => {
@@ -85,11 +89,31 @@ export default function MessagesPage() {
     }
   };
 
+  const handleHelp = async () => {
+    setGettingHelp(true);
+    try {
+      const res = await conversationsApi.startSupport();
+      router.push(`/dashboard/messages/${res.data.data.id}`);
+    } catch (err: any) {
+      toast({ title: "Couldn't open support chat", description: err?.response?.data?.message, variant: "destructive" });
+    } finally {
+      setGettingHelp(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Messages</h2>
-        <p className="text-muted-foreground">Direct messages between businesses and promoters</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Messages</h2>
+          <p className="text-muted-foreground">Direct messages between businesses and promoters</p>
+        </div>
+        {user?.role !== "admin" && (
+          <Button variant="outline" onClick={handleHelp} disabled={gettingHelp}>
+            <LifeBuoy className="mr-2 h-4 w-4" />
+            {gettingHelp ? "Opening…" : "Help"}
+          </Button>
+        )}
       </div>
 
       <Card>

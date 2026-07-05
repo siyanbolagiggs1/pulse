@@ -128,6 +128,8 @@ export const notificationsApi = {
 export const conversationsApi = {
   start: (recipientId: string) =>
     api.post<{ success: boolean; data: Conversation }>("/conversations", { recipientId }),
+  startSupport: () =>
+    api.post<{ success: boolean; data: Conversation }>("/conversations/support"),
   list: (params?: object) =>
     api.get<{ success: boolean; data: Conversation[]; meta: Meta }>("/conversations", { params }),
   get: (id: string) => api.get<{ success: boolean; data: Conversation }>(`/conversations/${id}`),

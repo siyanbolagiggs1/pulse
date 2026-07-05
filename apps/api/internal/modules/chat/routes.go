@@ -11,6 +11,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	convs := rg.Group("/conversations", auth)
 	{
 		convs.POST("", handleStartConversation)
+		convs.POST("/support", handleStartSupportConversation)
 		convs.GET("", handleListConversations)
 		convs.GET("/:id", handleGetConversation)
 		convs.GET("/:id/messages", handleGetMessages)

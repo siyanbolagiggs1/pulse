@@ -22,6 +22,8 @@ func errStatus(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrNotParticipant):
 		return http.StatusForbidden
+	case errors.Is(err, ErrSupportNotConfigured):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}
@@ -42,6 +44,16 @@ func handleStartConversation(c *gin.Context) {
 		return
 	}
 	utils.OK(c, http.StatusCreated, "Conversation ready", conv)
+}
+
+// POST /api/conversations/support
+func handleStartSupportConversation(c *gin.Context) {
+	conv, err := startSupportConversation(c.Request.Context(), middleware.GetUserID(c), middleware.GetUserRole(c))
+	if err != nil {
+		utils.Fail(c, errStatus(err), err.Error())
+		return
+	}
+	utils.OK(c, http.StatusOK, "Conversation ready", conv)
 }
 
 // GET /api/conversations

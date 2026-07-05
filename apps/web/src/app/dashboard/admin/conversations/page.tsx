@@ -6,6 +6,8 @@ import type { AdminConversation } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
@@ -13,6 +15,22 @@ export default function AdminConversationsPage() {
   const router = useRouter();
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcasting, setBroadcasting] = useState(false);
+
+  const handleBroadcastWelcome = async () => {
+    setBroadcasting(true);
+    try {
+      const res = await adminConversationsApi.broadcastWelcome();
+      const { sent, skipped } = res.data.data;
+      toast({ title: "Welcome messages sent", description: `Sent to ${sent} user(s), skipped ${skipped} (already welcomed).` });
+      setBroadcastOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to send", description: err?.response?.data?.message, variant: "destructive" });
+    } finally {
+      setBroadcasting(false);
+    }
+  };
 
   useEffect(() => {
     adminConversationsApi.list()
@@ -35,10 +53,33 @@ export default function AdminConversationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Conversations</h2>
-        <p className="text-muted-foreground">Read-only oversight of all conversations</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Conversations</h2>
+          <p className="text-muted-foreground">Read-only oversight of all conversations</p>
+        </div>
+        <Button variant="outline" onClick={() => setBroadcastOpen(true)}>
+          Send welcome message to existing users
+        </Button>
       </div>
+
+      <Dialog open={broadcastOpen} onOpenChange={setBroadcastOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send welcome message to existing users?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Sends the one-time welcome message from support to every business and promoter who
+            doesn&apos;t already have one. Safe to run more than once — anyone already welcomed is skipped.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBroadcastOpen(false)}>Cancel</Button>
+            <Button onClick={handleBroadcastWelcome} disabled={broadcasting}>
+              {broadcasting ? "Sending…" : "Send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader><CardTitle>All Conversations ({conversations.length})</CardTitle></CardHeader>
