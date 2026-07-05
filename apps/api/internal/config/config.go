@@ -58,6 +58,13 @@ type Config struct {
 
 	// Support (auto welcome-message chat feature)
 	SupportAdminEmail string
+
+	// AI support assistant (Groq primary, Gemini fallback + embeddings)
+	GroqAPIKey           string
+	GroqModel            string
+	GeminiAPIKey         string
+	GeminiModel          string
+	GeminiEmbeddingModel string
 }
 
 var App *Config
@@ -103,6 +110,12 @@ func Load() {
 		PlatformCommission: getEnvFloat("PLATFORM_COMMISSION_RATE", 0.20),
 
 		SupportAdminEmail: getEnv("SUPPORT_ADMIN_EMAIL", ""),
+
+		GroqAPIKey:           getEnv("GROQ_API_KEY", ""),
+		GroqModel:            getEnv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+		GeminiAPIKey:         getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:          getEnv("GEMINI_MODEL", "gemini-2.0-flash"),
+		GeminiEmbeddingModel: getEnv("GEMINI_EMBEDDING_MODEL", "text-embedding-004"),
 	}
 }
 

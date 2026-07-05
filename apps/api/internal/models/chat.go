@@ -20,7 +20,10 @@ type Conversation struct {
 	LastMessagePreview string        `bson:"lastMessagePreview" json:"lastMessagePreview"`
 	UserALastReadAt    time.Time     `bson:"userALastReadAt"    json:"-"`
 	UserBLastReadAt    time.Time     `bson:"userBLastReadAt"    json:"-"`
-	CreatedAt          time.Time     `bson:"createdAt"          json:"createdAt"`
+	// NeedsAdminReview is set when the AI support assistant couldn't answer a
+	// message and escalated it, and cleared as soon as a real admin replies.
+	NeedsAdminReview bool      `bson:"needsAdminReview"   json:"needsAdminReview"`
+	CreatedAt        time.Time `bson:"createdAt"          json:"createdAt"`
 }
 
 const ConversationsCollection = "conversations"
@@ -30,7 +33,26 @@ type Message struct {
 	ConversationID bson.ObjectID `bson:"conversationId" json:"conversationId"`
 	SenderID       bson.ObjectID `bson:"senderId"       json:"senderId"`
 	Body           string        `bson:"body"           json:"body"`
-	CreatedAt      time.Time     `bson:"createdAt"      json:"createdAt"`
+	// IsBot marks messages sent automatically (welcome message, AI support
+	// replies) rather than typed by the human behind SenderID.
+	IsBot     bool      `bson:"isBot"          json:"isBot"`
+	CreatedAt time.Time `bson:"createdAt"      json:"createdAt"`
 }
 
 const MessagesCollection = "messages"
+
+// KnowledgeEntry is a (question -> answer) pair learned from a real admin
+// reply in a support conversation, used to let the AI support assistant
+// answer similar future questions automatically. Embedding is populated via
+// the configured embeddings provider (Gemini) and never serialized to any
+// API response — it's only used for in-process cosine-similarity search.
+type KnowledgeEntry struct {
+	ID                   bson.ObjectID `bson:"_id,omitempty"          json:"id"`
+	Question             string        `bson:"question"               json:"question"`
+	Answer               string        `bson:"answer"                 json:"answer"`
+	Embedding            []float32     `bson:"embedding"               json:"-"`
+	SourceConversationID bson.ObjectID `bson:"sourceConversationId"    json:"sourceConversationId"`
+	CreatedAt            time.Time     `bson:"createdAt"               json:"createdAt"`
+}
+
+const KnowledgeCollection = "support_knowledge"

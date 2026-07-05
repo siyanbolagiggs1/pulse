@@ -58,6 +58,9 @@ export default function AdminConversationThreadPage() {
                     <Badge variant="secondary" className="text-[10px] capitalize">
                       {aId ? (isA ? aRole : bRole) : "sender"}
                     </Badge>
+                    {m.isBot && (
+                      <Badge variant="secondary" className="text-[10px]">Bot</Badge>
+                    )}
                   </div>
                   <p className="whitespace-pre-wrap break-words text-sm">{m.body}</p>
                   <p className="mt-1 text-[10px] text-muted-foreground">

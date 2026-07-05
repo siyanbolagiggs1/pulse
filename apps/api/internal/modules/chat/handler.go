@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
+	"github.com/pulse/api/internal/models"
 	"github.com/pulse/api/internal/services/ws"
 	"github.com/pulse/api/internal/utils"
 )
@@ -94,13 +96,26 @@ func handleSendMessage(c *gin.Context) {
 		return
 	}
 
-	msg, otherPartyID, err := sendMessage(c.Request.Context(), c.Param("id"), middleware.GetUserID(c), req.Body)
+	conversationID := c.Param("id")
+	senderID := middleware.GetUserID(c)
+
+	msg, otherPartyID, err := sendMessage(c.Request.Context(), conversationID, senderID, req.Body)
 	if err != nil {
 		utils.Fail(c, errStatus(err), err.Error())
 		return
 	}
 
 	go ws.Global.Push(otherPartyID, ws.Envelope{Type: "chat_message", Data: msg})
+
+	// Support-AI hooks: a real admin reply teaches the assistant; a message
+	// to the support admin may get an automatic reply. Both are no-ops
+	// unless the conversation actually involves the configured support
+	// admin, so this is harmless for ordinary business<->promoter chat.
+	if middleware.GetUserRole(c) == string(models.RoleAdmin) {
+		go CaptureSupportKnowledge(context.Background(), conversationID, senderID, msg.Body)
+	} else {
+		go MaybeRespondAsSupportAI(context.Background(), conversationID, senderID, msg.Body)
+	}
 
 	utils.OK(c, http.StatusCreated, "Message sent", msg)
 }

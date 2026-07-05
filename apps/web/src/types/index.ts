@@ -156,6 +156,7 @@ export interface Conversation {
   lastMessageAt: string;
   lastMessagePreview: string;
   unreadCount: number;
+  needsAdminReview: boolean;
   createdAt: string;
 }
 
@@ -165,6 +166,7 @@ export interface AdminConversation {
   participantB: UserSummary;
   lastMessageAt: string;
   lastMessagePreview: string;
+  needsAdminReview: boolean;
   createdAt: string;
 }
 
@@ -173,6 +175,7 @@ export interface ChatMessage {
   conversationId: string;
   senderId: string;
   body: string;
+  isBot: boolean;
   createdAt: string;
 }
 

@@ -9,6 +9,7 @@ import { useRealtime } from "@/providers/realtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Send } from "lucide-react";
 import { format } from "date-fns";
@@ -116,11 +117,15 @@ export default function ConversationThreadPage() {
           <p className="font-medium">{otherName}</p>
           {otherTyping && <p className="text-xs text-primary">typing…</p>}
         </div>
+        {conversation?.needsAdminReview && (
+          <Badge variant="warning" className="ml-auto">Awaiting admin</Badge>
+        )}
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto py-4">
         {messages.map((m) => {
           const mine = m.senderId === user?.id;
+          const otherIsAdmin = conversation?.otherParty.role === "admin";
           return (
             <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
               <div
@@ -129,6 +134,11 @@ export default function ConversationThreadPage() {
                   mine ? "bg-primary text-primary-foreground" : "bg-accent"
                 )}
               >
+                {!mine && otherIsAdmin && (
+                  <Badge variant="secondary" className="mb-1 text-[9px]">
+                    {m.isBot ? "Bot" : "Admin"}
+                  </Badge>
+                )}
                 <p className="whitespace-pre-wrap break-words">{m.body}</p>
                 <p className={cn("mt-1 text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
                   {format(new Date(m.createdAt), "HH:mm")}

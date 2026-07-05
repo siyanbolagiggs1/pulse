@@ -33,6 +33,7 @@ type ConversationResponse struct {
 	LastMessageAt      time.Time   `json:"lastMessageAt"`
 	LastMessagePreview string      `json:"lastMessagePreview"`
 	UnreadCount        int64       `json:"unreadCount"`
+	NeedsAdminReview   bool        `json:"needsAdminReview"`
 	CreatedAt          time.Time   `json:"createdAt"`
 }
 
@@ -46,6 +47,7 @@ type AdminConversationResponse struct {
 	ParticipantB       UserSummary `json:"participantB"`
 	LastMessageAt      time.Time   `json:"lastMessageAt"`
 	LastMessagePreview string      `json:"lastMessagePreview"`
+	NeedsAdminReview   bool        `json:"needsAdminReview"`
 	CreatedAt          time.Time   `json:"createdAt"`
 }
 
@@ -59,6 +61,7 @@ type MessageResponse struct {
 	ConversationID string    `json:"conversationId"`
 	SenderID       string    `json:"senderId"`
 	Body           string    `json:"body"`
+	IsBot          bool      `json:"isBot"`
 	CreatedAt      time.Time `json:"createdAt"`
 }
 
@@ -81,6 +84,7 @@ func toMessageResponse(m *models.Message) MessageResponse {
 		ConversationID: m.ConversationID.Hex(),
 		SenderID:       m.SenderID.Hex(),
 		Body:           m.Body,
+		IsBot:          m.IsBot,
 		CreatedAt:      m.CreatedAt,
 	}
 }

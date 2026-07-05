@@ -70,6 +70,7 @@ export default function AdminConversationsPage() {
                       <span className="text-muted-foreground">↔</span>
                       <span className="truncate font-medium">{c.participantB.name}</span>
                       <Badge variant="secondary" className="capitalize">{c.participantB.role}</Badge>
+                      {c.needsAdminReview && <Badge variant="warning">Awaiting admin</Badge>}
                     </div>
                     <p className="truncate text-sm text-muted-foreground">{c.lastMessagePreview || "No messages yet"}</p>
                   </div>

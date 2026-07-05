@@ -65,6 +65,7 @@ func startOrGetConversation(ctx context.Context, callerID, callerRole, recipient
 		LastMessageAt:      conv.LastMessageAt,
 		LastMessagePreview: conv.LastMessagePreview,
 		UnreadCount:        0,
+		NeedsAdminReview:   conv.NeedsAdminReview,
 		CreatedAt:          conv.CreatedAt,
 	}
 	return &resp, nil
@@ -199,6 +200,7 @@ func listConversations(ctx context.Context, userID string, page, limit int) ([]C
 			LastMessageAt:      c.LastMessageAt,
 			LastMessagePreview: c.LastMessagePreview,
 			UnreadCount:        unread,
+			NeedsAdminReview:   c.NeedsAdminReview,
 			CreatedAt:          c.CreatedAt,
 		})
 	}
@@ -239,6 +241,7 @@ func getConversation(ctx context.Context, conversationID, userID string) (*Conve
 		LastMessageAt:      conv.LastMessageAt,
 		LastMessagePreview: conv.LastMessagePreview,
 		UnreadCount:        unread,
+		NeedsAdminReview:   conv.NeedsAdminReview,
 		CreatedAt:          conv.CreatedAt,
 	}, nil
 }
@@ -291,6 +294,7 @@ func listAllConversations(ctx context.Context, page, limit int) ([]AdminConversa
 			ParticipantB:       toUserSummary(&b),
 			LastMessageAt:      c.LastMessageAt,
 			LastMessagePreview: c.LastMessagePreview,
+			NeedsAdminReview:   c.NeedsAdminReview,
 			CreatedAt:          c.CreatedAt,
 		})
 	}
@@ -415,10 +419,11 @@ func getMessages(ctx context.Context, conversationID, callerID string, requirePa
 	return resp, total, nil
 }
 
-// sendMessage persists a message and returns it plus the other participant's
-// ID, so the handler can push a live "chat_message" event to them.
+// sendMessage persists a human-typed message and returns it plus the other
+// participant's ID, so the handler can push a live "chat_message" event to
+// them.
 func sendMessage(ctx context.Context, conversationID, senderID, body string) (*MessageResponse, string, error) {
-	conv, convObjID, err := loadConversation(ctx, conversationID)
+	conv, _, err := loadConversation(ctx, conversationID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -426,6 +431,19 @@ func sendMessage(ctx context.Context, conversationID, senderID, body string) (*M
 	if err != nil {
 		return nil, "", ErrUserNotFound
 	}
+	return insertMessage(ctx, conv, senderObjID, body, false)
+}
+
+// sendBotMessage persists a message sent automatically on a user's behalf
+// (welcome message, AI support reply) — same effect as sendMessage but
+// flagged isBot, and takes an already-resolved conversation/sender since its
+// callers already have both in hand.
+func sendBotMessage(ctx context.Context, conv *models.Conversation, senderObjID bson.ObjectID, body string) (*MessageResponse, string, error) {
+	return insertMessage(ctx, conv, senderObjID, body, true)
+}
+
+// insertMessage is the shared persistence path for both human and bot messages.
+func insertMessage(ctx context.Context, conv *models.Conversation, senderObjID bson.ObjectID, body string, isBot bool) (*MessageResponse, string, error) {
 	otherID, err := otherParticipant(conv, senderObjID)
 	if err != nil {
 		return nil, "", err
@@ -433,9 +451,10 @@ func sendMessage(ctx context.Context, conversationID, senderID, body string) (*M
 
 	now := time.Now().UTC()
 	msg := models.Message{
-		ConversationID: convObjID,
+		ConversationID: conv.ID,
 		SenderID:       senderObjID,
 		Body:           body,
+		IsBot:          isBot,
 		CreatedAt:      now,
 	}
 	result, err := database.GetCollection(models.MessagesCollection).InsertOne(ctx, msg)
@@ -447,7 +466,7 @@ func sendMessage(ctx context.Context, conversationID, senderID, body string) (*M
 	}
 
 	_, _ = database.GetCollection(models.ConversationsCollection).UpdateOne(ctx,
-		bson.M{"_id": convObjID},
+		bson.M{"_id": conv.ID},
 		bson.M{"$set": bson.M{
 			"lastMessageAt":      now,
 			"lastMessagePreview": truncatePreview(body, 140),
@@ -567,7 +586,7 @@ func SendWelcomeMessage(ctx context.Context, recipientUserID string) (sent bool,
 		return false, nil
 	}
 
-	msg, otherPartyID, err := sendMessage(ctx, conv.ID.Hex(), supportAdmin.ID.Hex(), welcomeMessageBody)
+	msg, otherPartyID, err := sendBotMessage(ctx, conv, supportAdmin.ID, welcomeMessageBody)
 	if err != nil {
 		return false, err
 	}

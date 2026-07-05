@@ -152,6 +152,9 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <p className="truncate text-sm text-muted-foreground">{c.lastMessagePreview || "No messages yet"}</p>
+                    {c.needsAdminReview && (
+                      <Badge variant="warning" className="mt-1 text-[10px]">Awaiting admin</Badge>
+                    )}
                   </div>
                   {c.unreadCount > 0 && <Badge>{c.unreadCount > 9 ? "9+" : c.unreadCount}</Badge>}
                 </button>
