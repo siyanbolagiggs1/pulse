@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, UserRound } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ export default function ConversationThreadPage() {
   const [sending, setSending] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
   const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
+  const [requestingHuman, setRequestingHuman] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef(0);
@@ -98,9 +99,25 @@ export default function ConversationThreadPage() {
     }
   };
 
+  const handleRequestHuman = async () => {
+    setRequestingHuman(true);
+    try {
+      const res = await conversationsApi.sendMessage(id, "I'd like to talk to human support, please.");
+      setMessages((prev) => [...prev, res.data.data]);
+      // This phrasing always escalates server-side — reflect it immediately
+      // rather than waiting on a conversation refetch.
+      setConversation((prev) => (prev ? { ...prev, needsAdminReview: true } : prev));
+    } catch (err: any) {
+      toast({ title: "Failed to send", description: err?.response?.data?.message, variant: "destructive" });
+    } finally {
+      setRequestingHuman(false);
+    }
+  };
+
   if (loading) return <Skeleton className="h-96 w-full" />;
 
   const otherName = conversation?.otherParty.name ?? "Conversation";
+  const otherIsAdmin = conversation?.otherParty.role === "admin";
   const lastOwnMessage = [...messages].reverse().find((m) => m.senderId === user?.id);
   const seen = !!(lastOwnMessage && otherReadAt && lastOwnMessage.createdAt <= otherReadAt);
 
@@ -125,7 +142,6 @@ export default function ConversationThreadPage() {
       <div className="flex-1 space-y-3 overflow-y-auto py-4">
         {messages.map((m) => {
           const mine = m.senderId === user?.id;
-          const otherIsAdmin = conversation?.otherParty.role === "admin";
           return (
             <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
               <div
@@ -150,6 +166,19 @@ export default function ConversationThreadPage() {
         {seen && <p className="text-right text-[10px] text-muted-foreground">Seen</p>}
         <div ref={bottomRef} />
       </div>
+
+      {otherIsAdmin && !conversation?.needsAdminReview && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mb-2 w-full"
+          onClick={handleRequestHuman}
+          disabled={requestingHuman}
+        >
+          <UserRound className="mr-2 h-4 w-4" />
+          {requestingHuman ? "Requesting…" : "Chat with human support"}
+        </Button>
+      )}
 
       <div className="flex items-center gap-2 border-t border-border pt-3">
         <Input

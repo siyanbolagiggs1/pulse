@@ -17,11 +17,40 @@ import (
 )
 
 const escalationMessageBody = "Thanks for reaching out — this looks like something an admin should personally look into. I've flagged it and someone from our team will get back to you soon."
+const humanRequestedMessageBody = "Of course — I've flagged this conversation so a member of our team can jump in and help you directly."
 
 const (
 	kbSimilarityThreshold = 0.80
 	kbMaxMatches          = 3
 )
+
+// humanHandoffPhrases catches common ways of asking for a real person. This
+// runs before any AI call — a match escalates immediately and deterministically,
+// rather than depending on the model to always honor the system-prompt rule.
+var humanHandoffPhrases = []string{
+	"talk to a human", "talk to human", "speak to a human", "speak to human",
+	"speak with a human", "chat with a human", "connect me to a human",
+	"real person", "actual person", "human agent", "human support",
+	"live agent", "customer service", "talk to someone", "speak to someone",
+	"speak with someone", "talk to support", "speak to support", "speak with support",
+	"talk to an admin", "speak to an admin", "speak with an admin",
+	"talk to a person", "speak to a person", "need a human", "want a human",
+	"get me a human", "representative please", "human being", "human rep",
+	"actual human",
+}
+
+// wantsHumanHandoff reports whether body is asking to be connected to a
+// real person rather than the bot — this always escalates, even for
+// questions the bot could otherwise answer.
+func wantsHumanHandoff(body string) bool {
+	lower := strings.ToLower(body)
+	for _, phrase := range humanHandoffPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
+}
 
 // MaybeRespondAsSupportAI is fire-and-forget-called after a message is sent
 // into a conversation. It only acts when the sender is a real user (not the
@@ -62,13 +91,22 @@ func MaybeRespondAsSupportAI(ctx context.Context, conversationID, senderID, body
 		return
 	}
 
-	kbContext := buildKnowledgeContext(ctx, body)
-	systemPrompt := supportSystemPrompt(kbContext)
+	var reply string
+	var escalate bool
 
-	reply, err := ai.Reply(ctx, systemPrompt, body)
-	escalate := err != nil || isEscalationSignal(reply)
-	if escalate {
-		reply = escalationMessageBody
+	if wantsHumanHandoff(body) {
+		reply = humanRequestedMessageBody
+		escalate = true
+	} else {
+		kbContext := buildKnowledgeContext(ctx, body)
+		systemPrompt := supportSystemPrompt(kbContext)
+
+		var replyErr error
+		reply, replyErr = ai.Reply(ctx, systemPrompt, body)
+		escalate = replyErr != nil || isEscalationSignal(reply)
+		if escalate {
+			reply = escalationMessageBody
+		}
 	}
 
 	msg, otherPartyID, err := sendBotMessage(ctx, conv, supportAdmin.ID, reply)
@@ -91,6 +129,7 @@ func supportSystemPrompt(kbContext string) string {
 	base := `You are Pulse's automated support assistant, replying inside a live conversation with a user on behalf of the support team.
 
 Rules:
+- If the user is explicitly asking to speak with a human, a real person, support, or an admin, respond with EXACTLY the single word ESCALATE regardless of whether you could otherwise answer their question.
 - If the message is casual conversation (a greeting, thanks, small talk, or a simple check-in), reply warmly and briefly as Pulse support.
 - If the message closely matches one of the previously-answered questions below, answer it the same way in your own words — never mention that you're referencing past answers.
 - If it's a real question or issue you have no reliable information about, respond with EXACTLY the single word ESCALATE and nothing else.

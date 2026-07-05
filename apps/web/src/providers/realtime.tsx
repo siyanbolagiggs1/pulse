@@ -49,11 +49,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   // Total unread count across every conversation — the source of truth is
   // always a server refetch (cheap, and avoids client-side drift); live
   // "chat_message" events just bump the count optimistically in between.
+  //
+  // Admin is scoped differently: their badge should only reflect threads the
+  // AI support assistant couldn't handle (needsAdminReview) — bot-handled
+  // exchanges and casual chatter shouldn't compete for their attention.
+  // Business/promoter accounts keep counting every unread message regardless
+  // of whether it came from a human or the bot.
   const refreshUnreadMessages = useCallback(() => {
     if (!user) return;
     conversationsApi.list({ limit: 50 })
       .then((r) => {
-        const total = (r.data.data ?? []).reduce((sum, c) => sum + c.unreadCount, 0);
+        const convs = r.data.data ?? [];
+        const relevant = user.role === "admin" ? convs.filter((c) => c.needsAdminReview) : convs;
+        const total = relevant.reduce((sum, c) => sum + c.unreadCount, 0);
         setUnreadMessages(total);
       })
       .catch(() => {});
@@ -69,11 +77,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     return subscribe("chat_message", ((data: { senderId: string }) => {
-      if (data.senderId !== user?.id) {
+      if (data.senderId === user?.id) return;
+      if (user?.role === "admin") {
+        // Whether this counts depends on needsAdminReview, which isn't on the
+        // WS envelope — refetch for the authoritative escalation-scoped count.
+        refreshUnreadMessages();
+      } else {
         setUnreadMessages((c) => c + 1);
       }
     }) as Listener);
-  }, [subscribe, user?.id]);
+  }, [subscribe, user?.id, user?.role, refreshUnreadMessages]);
 
   useEffect(() => {
     if (!user) return;
