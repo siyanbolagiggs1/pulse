@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://pulse-murex-five.vercel.app"),
   title: "Pulse — Community-Powered Social Promotion",
   description: "Businesses run repost campaigns. Promoters earn money sharing them.",
   manifest: "/manifest.json",
