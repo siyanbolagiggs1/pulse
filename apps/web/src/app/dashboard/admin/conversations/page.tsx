@@ -23,10 +23,12 @@ export default function AdminConversationsPage() {
 
   const openThread = (c: AdminConversation) => {
     const params = new URLSearchParams({
-      businessId: c.business.id,
-      businessName: c.business.name,
-      promoterId: c.promoter.id,
-      promoterName: c.promoter.name,
+      aId: c.participantA.id,
+      aName: c.participantA.name,
+      aRole: c.participantA.role,
+      bId: c.participantB.id,
+      bName: c.participantB.name,
+      bRole: c.participantB.role,
     });
     router.push(`/dashboard/admin/conversations/${c.id}?${params.toString()}`);
   };
@@ -35,7 +37,7 @@ export default function AdminConversationsPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Conversations</h2>
-        <p className="text-muted-foreground">Read-only oversight of business ↔ promoter messages</p>
+        <p className="text-muted-foreground">Read-only oversight of all conversations</p>
       </div>
 
       <Card>
@@ -55,19 +57,19 @@ export default function AdminConversationsPage() {
                 >
                   <div className="flex -space-x-2">
                     <Avatar className="h-8 w-8 border-2 border-card">
-                      <AvatarFallback>{c.business.name?.[0]?.toUpperCase() ?? "?"}</AvatarFallback>
+                      <AvatarFallback>{c.participantA.name?.[0]?.toUpperCase() ?? "?"}</AvatarFallback>
                     </Avatar>
                     <Avatar className="h-8 w-8 border-2 border-card">
-                      <AvatarFallback>{c.promoter.name?.[0]?.toUpperCase() ?? "?"}</AvatarFallback>
+                      <AvatarFallback>{c.participantB.name?.[0]?.toUpperCase() ?? "?"}</AvatarFallback>
                     </Avatar>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium">{c.business.name}</span>
-                      <Badge variant="secondary">business</Badge>
+                      <span className="truncate font-medium">{c.participantA.name}</span>
+                      <Badge variant="secondary" className="capitalize">{c.participantA.role}</Badge>
                       <span className="text-muted-foreground">↔</span>
-                      <span className="truncate font-medium">{c.promoter.name}</span>
-                      <Badge variant="secondary">promoter</Badge>
+                      <span className="truncate font-medium">{c.participantB.name}</span>
+                      <Badge variant="secondary" className="capitalize">{c.participantB.role}</Badge>
                     </div>
                     <p className="truncate text-sm text-muted-foreground">{c.lastMessagePreview || "No messages yet"}</p>
                   </div>

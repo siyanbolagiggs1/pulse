@@ -36,6 +36,7 @@ const adminNav: NavItem[] = [
   { label: "Fraud Flags", href: "/dashboard/admin/fraud-flags", icon: AlertTriangle },
   { label: "Withdrawals", href: "/dashboard/admin/withdrawals", icon: ArrowDownToLine },
   { label: "Social Accounts", href: "/dashboard/admin/social-accounts", icon: ShieldCheck },
+  { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
   { label: "Conversations", href: "/dashboard/admin/conversations", icon: MessageCircle },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];

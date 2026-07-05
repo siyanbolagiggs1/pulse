@@ -55,6 +55,9 @@ type Config struct {
 	ClientURL          string
 	UploadDir          string
 	PlatformCommission float64 // e.g. 0.20 = 20%
+
+	// Support (auto welcome-message chat feature)
+	SupportAdminEmail string
 }
 
 var App *Config
@@ -98,6 +101,8 @@ func Load() {
 		ClientURL:          getEnv("CLIENT_URL", "http://localhost:3000"),
 		UploadDir:          getEnv("UPLOAD_DIR", "./uploads"),
 		PlatformCommission: getEnvFloat("PLATFORM_COMMISSION_RATE", 0.20),
+
+		SupportAdminEmail: getEnv("SUPPORT_ADMIN_EMAIL", ""),
 	}
 }
 

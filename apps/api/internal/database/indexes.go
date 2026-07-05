@@ -178,19 +178,21 @@ func createSocialAccountIndexes(ctx context.Context) {
 func createChatIndexes(ctx context.Context) {
 	convCol := GetCollection(models.ConversationsCollection)
 	convIndexes := []mongo.IndexModel{
-		// One conversation per business+promoter pair — also powers the
-		// upsert-based get-or-create in chat.startOrGetConversation.
+		// One conversation per unordered user pair — canonical ordering in
+		// chat.canonicalOrder guarantees userAId/userBId is always assigned
+		// consistently, so this also powers the upsert-based get-or-create in
+		// chat.startOrGetConversation / chat.SendWelcomeMessage.
 		{
-			Keys:    bson.D{{Key: "businessId", Value: 1}, {Key: "promoterId", Value: 1}},
-			Options: options.Index().SetUnique(true).SetName("business_promoter_unique"),
+			Keys:    bson.D{{Key: "userAId", Value: 1}, {Key: "userBId", Value: 1}},
+			Options: options.Index().SetUnique(true).SetName("user_pair_unique"),
 		},
 		{
-			Keys:    bson.D{{Key: "businessId", Value: 1}, {Key: "lastMessageAt", Value: -1}},
-			Options: options.Index().SetName("business_last_message"),
+			Keys:    bson.D{{Key: "userAId", Value: 1}, {Key: "lastMessageAt", Value: -1}},
+			Options: options.Index().SetName("user_a_last_message"),
 		},
 		{
-			Keys:    bson.D{{Key: "promoterId", Value: 1}, {Key: "lastMessageAt", Value: -1}},
-			Options: options.Index().SetName("promoter_last_message"),
+			Keys:    bson.D{{Key: "userBId", Value: 1}, {Key: "lastMessageAt", Value: -1}},
+			Options: options.Index().SetName("user_b_last_message"),
 		},
 	}
 	mustCreateIndexes(ctx, convCol, convIndexes, "conversations")

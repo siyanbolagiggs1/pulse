@@ -144,4 +144,6 @@ export const adminConversationsApi = {
     api.get<{ success: boolean; data: AdminConversation[]; meta: Meta }>("/admin/conversations", { params }),
   getMessages: (id: string, params?: object) =>
     api.get<{ success: boolean; data: ChatMessage[]; meta: Meta }>(`/admin/conversations/${id}/messages`, { params }),
+  broadcastWelcome: () =>
+    api.post<{ success: boolean; data: { sent: number; skipped: number } }>("/admin/conversations/broadcast-welcome"),
 };

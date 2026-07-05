@@ -23,5 +23,6 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	{
 		adminConvs.GET("", handleAdminListConversations)
 		adminConvs.GET("/:id/messages", handleAdminGetMessages)
+		adminConvs.POST("/broadcast-welcome", handleBroadcastWelcome)
 	}
 }

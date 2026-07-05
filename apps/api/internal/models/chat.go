@@ -6,18 +6,20 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Conversation is a single DM thread between one business and one promoter.
-// Fixed BusinessID/PromoterID fields (rather than a generic participant list)
-// keep the opposite-role validation and the unique index simple, since
-// same-role messaging is never allowed.
+// Conversation is a two-party DM thread. UserAID/UserBID are stored in a
+// canonical order (see chat.canonicalOrder) so the same pair of users always
+// maps to exactly one document regardless of who initiated it — this keeps
+// the unique (userAId, userBId) index meaningful. Pair validity (business<->
+// promoter, admin<->business, admin<->promoter) is enforced at the service
+// layer via isValidPair, not by the model.
 type Conversation struct {
 	ID                 bson.ObjectID `bson:"_id,omitempty"      json:"id"`
-	BusinessID         bson.ObjectID `bson:"businessId"         json:"businessId"`
-	PromoterID         bson.ObjectID `bson:"promoterId"         json:"promoterId"`
+	UserAID            bson.ObjectID `bson:"userAId"            json:"userAId"`
+	UserBID            bson.ObjectID `bson:"userBId"            json:"userBId"`
 	LastMessageAt      time.Time     `bson:"lastMessageAt"      json:"lastMessageAt"`
 	LastMessagePreview string        `bson:"lastMessagePreview" json:"lastMessagePreview"`
-	BusinessLastReadAt time.Time     `bson:"businessLastReadAt" json:"-"`
-	PromoterLastReadAt time.Time     `bson:"promoterLastReadAt" json:"-"`
+	UserALastReadAt    time.Time     `bson:"userALastReadAt"    json:"-"`
+	UserBLastReadAt    time.Time     `bson:"userBLastReadAt"    json:"-"`
 	CreatedAt          time.Time     `bson:"createdAt"          json:"createdAt"`
 }
 

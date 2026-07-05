@@ -36,15 +36,22 @@ type ConversationResponse struct {
 	CreatedAt          time.Time   `json:"createdAt"`
 }
 
-// AdminConversationResponse names both participants explicitly since admin
-// oversight has no single "caller" to be relative to.
+// AdminConversationResponse names both participants generically since admin
+// oversight has no single "caller" to be relative to, and either participant
+// may now be an admin, business, or promoter. Each UserSummary still carries
+// its own Role so the oversight UI can label them.
 type AdminConversationResponse struct {
 	ID                 string      `json:"id"`
-	Business           UserSummary `json:"business"`
-	Promoter           UserSummary `json:"promoter"`
+	ParticipantA       UserSummary `json:"participantA"`
+	ParticipantB       UserSummary `json:"participantB"`
 	LastMessageAt      time.Time   `json:"lastMessageAt"`
 	LastMessagePreview string      `json:"lastMessagePreview"`
 	CreatedAt          time.Time   `json:"createdAt"`
+}
+
+type BroadcastWelcomeResponse struct {
+	Sent    int `json:"sent"`
+	Skipped int `json:"skipped"`
 }
 
 type MessageResponse struct {

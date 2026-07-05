@@ -12,6 +12,7 @@ import (
 	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
+	"github.com/pulse/api/internal/modules/chat"
 	"github.com/pulse/api/internal/services"
 	"github.com/pulse/api/internal/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -88,6 +89,15 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 		fmt.Printf("\n[DEV] Verification link: %s/verify-email/%s\n", config.App.ClientURL, verifyToken)
 		if err := services.SendVerificationEmail(user.Email, user.Name, verifyToken); err != nil {
 			fmt.Printf("Warning: could not send verification email to %s: %v\n", user.Email, err)
+		}
+	}()
+
+	// Send an automatic one-time welcome message from support (non-blocking —
+	// log failures, never fail registration). No-ops gracefully if
+	// SUPPORT_ADMIN_EMAIL isn't configured.
+	go func() {
+		if _, err := chat.SendWelcomeMessage(context.Background(), user.ID.Hex()); err != nil {
+			fmt.Printf("Warning: could not send welcome message to %s: %v\n", user.Email, err)
 		}
 	}()
 
@@ -372,6 +382,14 @@ func googleSignIn(ctx context.Context, credential, role string) (*models.User, s
 		if err := createWallet(ctx, &user); err != nil {
 			return nil, "", err
 		}
+
+		// Same automatic welcome message as the regular register() path —
+		// "every new user" shouldn't depend on which signup method they used.
+		go func(userID string) {
+			if _, err := chat.SendWelcomeMessage(context.Background(), userID); err != nil {
+				fmt.Printf("Warning: could not send welcome message to %s: %v\n", user.Email, err)
+			}
+		}(user.ID.Hex())
 	} else if err != nil {
 		return nil, "", err
 	}

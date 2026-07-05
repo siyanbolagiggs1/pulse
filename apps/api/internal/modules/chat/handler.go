@@ -47,7 +47,7 @@ func handleListConversations(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	convs, total, err := listConversations(c.Request.Context(), middleware.GetUserID(c), middleware.GetUserRole(c), page, limit)
+	convs, total, err := listConversations(c.Request.Context(), middleware.GetUserID(c), page, limit)
 	if err != nil {
 		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch conversations")
 		return
@@ -61,7 +61,7 @@ func handleListConversations(c *gin.Context) {
 
 // GET /api/conversations/:id
 func handleGetConversation(c *gin.Context) {
-	conv, err := getConversation(c.Request.Context(), c.Param("id"), middleware.GetUserID(c), middleware.GetUserRole(c))
+	conv, err := getConversation(c.Request.Context(), c.Param("id"), middleware.GetUserID(c))
 	if err != nil {
 		utils.Fail(c, errStatus(err), err.Error())
 		return
@@ -176,6 +176,16 @@ func handleAdminGetMessages(c *gin.Context) {
 	utils.OKWithMeta(c, http.StatusOK, "", msgs, ListMeta{
 		Total: total, Page: clampPage(page), Limit: limit, Pages: pages(total, limit),
 	})
+}
+
+// POST /api/admin/conversations/broadcast-welcome
+func handleBroadcastWelcome(c *gin.Context) {
+	sent, skipped, err := broadcastWelcomeMessages(c.Request.Context())
+	if err != nil {
+		utils.Fail(c, http.StatusInternalServerError, "Failed to broadcast welcome messages")
+		return
+	}
+	utils.OK(c, http.StatusOK, "Welcome messages broadcast complete", BroadcastWelcomeResponse{Sent: sent, Skipped: skipped})
 }
 
 func clampPage(page int) int {

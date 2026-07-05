@@ -3,11 +3,14 @@ package chat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
+	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
+	"github.com/pulse/api/internal/services/ws"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -15,11 +18,13 @@ import (
 
 var (
 	ErrUserNotFound         = errors.New("user not found")
-	ErrInvalidRecipient     = errors.New("you can only message users of the opposite role (business <-> promoter)")
+	ErrInvalidRecipient     = errors.New("you cannot start a conversation with a user of that role")
 	ErrUserSuspended        = errors.New("cannot start a conversation with a suspended user")
 	ErrConversationNotFound = errors.New("conversation not found")
 	ErrNotParticipant       = errors.New("you are not a participant in this conversation")
 )
+
+const welcomeMessageBody = "Welcome to Pulse! If you ever run into issues, have feedback, or just want to flag something, feel free to message us right here — we read every message."
 
 // ── Start / get conversation ──────────────────────────────────
 
@@ -49,30 +54,7 @@ func startOrGetConversation(ctx context.Context, callerID, callerRole, recipient
 		return nil, ErrUserSuspended
 	}
 
-	var businessID, promoterID bson.ObjectID
-	if callerRole == string(models.RoleBusiness) {
-		businessID, promoterID = callerObjID, recipientObjID
-	} else {
-		businessID, promoterID = recipientObjID, callerObjID
-	}
-
-	col := database.GetCollection(models.ConversationsCollection)
-	now := time.Now().UTC()
-
-	var conv models.Conversation
-	err = col.FindOneAndUpdate(ctx,
-		bson.M{"businessId": businessID, "promoterId": promoterID},
-		bson.M{"$setOnInsert": bson.M{
-			"businessId":         businessID,
-			"promoterId":         promoterID,
-			"lastMessageAt":      time.Time{},
-			"lastMessagePreview": "",
-			"businessLastReadAt": time.Time{},
-			"promoterLastReadAt": time.Time{},
-			"createdAt":          now,
-		}},
-		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
-	).Decode(&conv)
+	conv, err := getOrCreateConversation(ctx, callerObjID, recipientObjID)
 	if err != nil {
 		return nil, err
 	}
@@ -88,14 +70,65 @@ func startOrGetConversation(ctx context.Context, callerID, callerRole, recipient
 	return &resp, nil
 }
 
+// canonicalOrder returns (a, b) such that a's hex ObjectID string sorts
+// lexicographically <= b's, so the same two users always produce the same
+// (UserAID, UserBID) pair regardless of who initiates — required for the
+// unique (userAId, userBId) index to prevent duplicate conversations.
+func canonicalOrder(id1, id2 bson.ObjectID) (bson.ObjectID, bson.ObjectID) {
+	if id1.Hex() <= id2.Hex() {
+		return id1, id2
+	}
+	return id2, id1
+}
+
+// getOrCreateConversation is the shared get-or-create used by both the HTTP
+// start-conversation path and the system-initiated welcome message path
+// (which has no "caller role" to check via isValidPair).
+func getOrCreateConversation(ctx context.Context, userID1, userID2 bson.ObjectID) (*models.Conversation, error) {
+	userAID, userBID := canonicalOrder(userID1, userID2)
+
+	col := database.GetCollection(models.ConversationsCollection)
+	now := time.Now().UTC()
+
+	var conv models.Conversation
+	err := col.FindOneAndUpdate(ctx,
+		bson.M{"userAId": userAID, "userBId": userBID},
+		bson.M{"$setOnInsert": bson.M{
+			"userAId":            userAID,
+			"userBId":            userBID,
+			"lastMessageAt":      time.Time{},
+			"lastMessagePreview": "",
+			"userALastReadAt":    time.Time{},
+			"userBLastReadAt":    time.Time{},
+			"createdAt":          now,
+		}},
+		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
+	).Decode(&conv)
+	if err != nil {
+		return nil, err
+	}
+	return &conv, nil
+}
+
+// allowedPairs enumerates every valid (role, role) combination for starting a
+// conversation, keyed order-independently. business<->business, promoter<->
+// promoter, and admin<->admin are all intentionally absent (rejected).
+var allowedPairs = map[[2]string]bool{
+	{string(models.RoleBusiness), string(models.RolePromoter)}: true,
+	{string(models.RolePromoter), string(models.RoleBusiness)}: true,
+	{string(models.RoleAdmin), string(models.RoleBusiness)}:    true,
+	{string(models.RoleBusiness), string(models.RoleAdmin)}:    true,
+	{string(models.RoleAdmin), string(models.RolePromoter)}:    true,
+	{string(models.RolePromoter), string(models.RoleAdmin)}:    true,
+}
+
 func isValidPair(callerRole, recipientRole string) bool {
-	return (callerRole == string(models.RoleBusiness) && recipientRole == string(models.RolePromoter)) ||
-		(callerRole == string(models.RolePromoter) && recipientRole == string(models.RoleBusiness))
+	return allowedPairs[[2]string{callerRole, recipientRole}]
 }
 
 // ── List conversations ────────────────────────────────────────
 
-func listConversations(ctx context.Context, userID, role string, page, limit int) ([]ConversationResponse, int64, error) {
+func listConversations(ctx context.Context, userID string, page, limit int) ([]ConversationResponse, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -108,11 +141,10 @@ func listConversations(ctx context.Context, userID, role string, page, limit int
 		return nil, 0, ErrUserNotFound
 	}
 
-	isBusiness := role == string(models.RoleBusiness)
-	filter := bson.M{"promoterId": objID}
-	if isBusiness {
-		filter = bson.M{"businessId": objID}
-	}
+	filter := bson.M{"$or": bson.A{
+		bson.M{"userAId": objID},
+		bson.M{"userBId": objID},
+	}}
 
 	col := database.GetCollection(models.ConversationsCollection)
 	total, err := col.CountDocuments(ctx, filter)
@@ -138,11 +170,9 @@ func listConversations(ctx context.Context, userID, role string, page, limit int
 	}
 
 	otherIDs := make([]bson.ObjectID, 0, len(convs))
-	for _, c := range convs {
-		if isBusiness {
-			otherIDs = append(otherIDs, c.PromoterID)
-		} else {
-			otherIDs = append(otherIDs, c.BusinessID)
+	for i := range convs {
+		if other, err := otherParticipant(&convs[i], objID); err == nil {
+			otherIDs = append(otherIDs, other)
 		}
 	}
 	usersByID := fetchUsersByID(ctx, otherIDs)
@@ -150,12 +180,11 @@ func listConversations(ctx context.Context, userID, role string, page, limit int
 	msgCol := database.GetCollection(models.MessagesCollection)
 	resp := make([]ConversationResponse, 0, len(convs))
 	for _, c := range convs {
-		otherID := c.BusinessID
-		lastRead := c.PromoterLastReadAt
-		if isBusiness {
-			otherID = c.PromoterID
-			lastRead = c.BusinessLastReadAt
+		otherID, err := otherParticipant(&c, objID)
+		if err != nil {
+			continue
 		}
+		lastRead := myLastReadAt(&c, objID)
 
 		unread, _ := msgCol.CountDocuments(ctx, bson.M{
 			"conversationId": c.ID,
@@ -180,7 +209,7 @@ func listConversations(ctx context.Context, userID, role string, page, limit int
 // getConversation returns a single conversation from the caller's point of
 // view — used by the thread page to resolve the other party's name/avatar
 // without fetching the whole list.
-func getConversation(ctx context.Context, conversationID, userID, role string) (*ConversationResponse, error) {
+func getConversation(ctx context.Context, conversationID, userID string) (*ConversationResponse, error) {
 	conv, convObjID, err := loadConversation(ctx, conversationID)
 	if err != nil {
 		return nil, err
@@ -197,10 +226,7 @@ func getConversation(ctx context.Context, conversationID, userID, role string) (
 	usersByID := fetchUsersByID(ctx, []bson.ObjectID{otherID})
 	other := usersByID[otherID]
 
-	lastRead := conv.PromoterLastReadAt
-	if role == string(models.RoleBusiness) {
-		lastRead = conv.BusinessLastReadAt
-	}
+	lastRead := myLastReadAt(conv, userObjID)
 	unread, _ := database.GetCollection(models.MessagesCollection).CountDocuments(ctx, bson.M{
 		"conversationId": convObjID,
 		"senderId":       bson.M{"$ne": userObjID},
@@ -251,18 +277,18 @@ func listAllConversations(ctx context.Context, page, limit int) ([]AdminConversa
 
 	ids := make([]bson.ObjectID, 0, len(convs)*2)
 	for _, c := range convs {
-		ids = append(ids, c.BusinessID, c.PromoterID)
+		ids = append(ids, c.UserAID, c.UserBID)
 	}
 	usersByID := fetchUsersByID(ctx, ids)
 
 	resp := make([]AdminConversationResponse, 0, len(convs))
 	for _, c := range convs {
-		biz := usersByID[c.BusinessID]
-		prom := usersByID[c.PromoterID]
+		a := usersByID[c.UserAID]
+		b := usersByID[c.UserBID]
 		resp = append(resp, AdminConversationResponse{
 			ID:                 c.ID.Hex(),
-			Business:           toUserSummary(&biz),
-			Promoter:           toUserSummary(&prom),
+			ParticipantA:       toUserSummary(&a),
+			ParticipantB:       toUserSummary(&b),
 			LastMessageAt:      c.LastMessageAt,
 			LastMessagePreview: c.LastMessagePreview,
 			CreatedAt:          c.CreatedAt,
@@ -313,13 +339,22 @@ func loadConversation(ctx context.Context, conversationID string) (*models.Conve
 // userObjID, or ErrNotParticipant if userObjID isn't in this conversation at all.
 func otherParticipant(conv *models.Conversation, userObjID bson.ObjectID) (bson.ObjectID, error) {
 	switch userObjID {
-	case conv.BusinessID:
-		return conv.PromoterID, nil
-	case conv.PromoterID:
-		return conv.BusinessID, nil
+	case conv.UserAID:
+		return conv.UserBID, nil
+	case conv.UserBID:
+		return conv.UserAID, nil
 	default:
 		return bson.ObjectID{}, ErrNotParticipant
 	}
+}
+
+// myLastReadAt returns the caller's own last-read timestamp for this
+// conversation (mirrors otherParticipant's field-matching pattern).
+func myLastReadAt(conv *models.Conversation, userObjID bson.ObjectID) time.Time {
+	if userObjID == conv.UserBID {
+		return conv.UserBLastReadAt
+	}
+	return conv.UserALastReadAt
 }
 
 // ── Messages ──────────────────────────────────────────────────
@@ -447,10 +482,10 @@ func markRead(ctx context.Context, conversationID, userID string) (string, error
 
 	var field string
 	switch userObjID {
-	case conv.BusinessID:
-		field = "businessLastReadAt"
-	case conv.PromoterID:
-		field = "promoterLastReadAt"
+	case conv.UserAID:
+		field = "userALastReadAt"
+	case conv.UserBID:
+		field = "userBLastReadAt"
 	default:
 		return "", ErrNotParticipant
 	}
@@ -483,6 +518,96 @@ func verifyParticipant(ctx context.Context, conversationID, userID string) (stri
 		return "", err
 	}
 	return otherID.Hex(), nil
+}
+
+// ── Support welcome message ────────────────────────────────────
+
+// SendWelcomeMessage sends a one-time welcome message from the designated
+// support admin (config.App.SupportAdminEmail) to the given user. Safe to
+// call more than once for the same user — a no-op if they already have any
+// message in their conversation with support (whether from a previous
+// welcome, or because they messaged support first). Never blocks or panics;
+// callers (registration hook, backfill) are expected to only log failures.
+func SendWelcomeMessage(ctx context.Context, recipientUserID string) (sent bool, err error) {
+	if config.App.SupportAdminEmail == "" {
+		return false, nil
+	}
+
+	var supportAdmin models.User
+	if err := database.GetCollection(models.UsersCollection).
+		FindOne(ctx, bson.M{"email": config.App.SupportAdminEmail}).Decode(&supportAdmin); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return false, fmt.Errorf("support admin account %q not found", config.App.SupportAdminEmail)
+		}
+		return false, err
+	}
+	if supportAdmin.Role != models.RoleAdmin {
+		return false, fmt.Errorf("configured SUPPORT_ADMIN_EMAIL %q is not an admin account", config.App.SupportAdminEmail)
+	}
+
+	recipientObjID, err := bson.ObjectIDFromHex(recipientUserID)
+	if err != nil {
+		return false, ErrUserNotFound
+	}
+	if recipientObjID == supportAdmin.ID {
+		return false, nil
+	}
+
+	conv, err := getOrCreateConversation(ctx, supportAdmin.ID, recipientObjID)
+	if err != nil {
+		return false, err
+	}
+
+	existingCount, err := database.GetCollection(models.MessagesCollection).
+		CountDocuments(ctx, bson.M{"conversationId": conv.ID})
+	if err != nil {
+		return false, err
+	}
+	if existingCount > 0 {
+		return false, nil
+	}
+
+	msg, otherPartyID, err := sendMessage(ctx, conv.ID.Hex(), supportAdmin.ID.Hex(), welcomeMessageBody)
+	if err != nil {
+		return false, err
+	}
+
+	ws.Global.Push(otherPartyID, ws.Envelope{Type: "chat_message", Data: msg})
+
+	return true, nil
+}
+
+// broadcastWelcomeMessages sends the welcome message to every business/
+// promoter user who doesn't already have one (via SendWelcomeMessage's own
+// idempotency check). Safe to call repeatedly — e.g. re-running to catch
+// stragglers doesn't create duplicate welcomes.
+func broadcastWelcomeMessages(ctx context.Context) (sent int, skipped int, err error) {
+	cursor, err := database.GetCollection(models.UsersCollection).Find(ctx, bson.M{
+		"role": bson.M{"$in": bson.A{string(models.RoleBusiness), string(models.RolePromoter)}},
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []models.User
+	if err := cursor.All(ctx, &users); err != nil {
+		return 0, 0, err
+	}
+
+	for _, u := range users {
+		wasSent, sendErr := SendWelcomeMessage(ctx, u.ID.Hex())
+		if sendErr != nil {
+			skipped++
+			continue
+		}
+		if wasSent {
+			sent++
+		} else {
+			skipped++
+		}
+	}
+	return sent, skipped, nil
 }
 
 // ── Helpers ──────────────────────────────────────────────────

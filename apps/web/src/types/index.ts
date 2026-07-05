@@ -161,8 +161,8 @@ export interface Conversation {
 
 export interface AdminConversation {
   id: string;
-  business: UserSummary;
-  promoter: UserSummary;
+  participantA: UserSummary;
+  participantB: UserSummary;
   lastMessageAt: string;
   lastMessagePreview: string;
   createdAt: string;

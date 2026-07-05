@@ -15,9 +15,11 @@ import { cn } from "@/lib/utils";
 export default function AdminConversationThreadPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const businessId = searchParams.get("businessId");
-  const businessName = searchParams.get("businessName") ?? "Business";
-  const promoterName = searchParams.get("promoterName") ?? "Promoter";
+  const aId = searchParams.get("aId");
+  const aName = searchParams.get("aName") ?? "Participant A";
+  const aRole = searchParams.get("aRole") ?? "";
+  const bName = searchParams.get("bName") ?? "Participant B";
+  const bRole = searchParams.get("bRole") ?? "";
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,7 @@ export default function AdminConversationThreadPage() {
           <Link href="/dashboard/admin/conversations"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
-          <h2 className="text-lg font-semibold">{businessName} ↔ {promoterName}</h2>
+          <h2 className="text-lg font-semibold">{aName} ↔ {bName}</h2>
           <p className="text-xs text-muted-foreground">Read-only oversight</p>
         </div>
       </div>
@@ -48,13 +50,13 @@ export default function AdminConversationThreadPage() {
           <p className="py-8 text-center text-sm text-muted-foreground">No messages yet</p>
         ) : (
           messages.map((m) => {
-            const isBusiness = businessId ? m.senderId === businessId : false;
+            const isA = aId ? m.senderId === aId : false;
             return (
-              <div key={m.id} className={cn("flex", isBusiness ? "justify-end" : "justify-start")}>
-                <div className={cn("max-w-[75%] rounded-lg border border-border p-3", isBusiness && "bg-accent")}>
+              <div key={m.id} className={cn("flex", isA ? "justify-end" : "justify-start")}>
+                <div className={cn("max-w-[75%] rounded-lg border border-border p-3", isA && "bg-accent")}>
                   <div className="mb-1 flex items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {businessId ? (isBusiness ? "business" : "promoter") : "sender"}
+                    <Badge variant="secondary" className="text-[10px] capitalize">
+                      {aId ? (isA ? aRole : bRole) : "sender"}
                     </Badge>
                   </div>
                   <p className="whitespace-pre-wrap break-words text-sm">{m.body}</p>
