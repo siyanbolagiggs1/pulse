@@ -71,6 +71,12 @@ func MaybeRespondAsSupportAI(ctx context.Context, conversationID, senderID, body
 	if err != nil {
 		return
 	}
+	// Once a conversation is escalated, the AI stops replying entirely —
+	// the thread stays in human mode until an admin answers and
+	// CaptureSupportKnowledge clears the flag.
+	if conv.NeedsAdminReview {
+		return
+	}
 	senderObjID, err := bson.ObjectIDFromHex(senderID)
 	if err != nil {
 		return

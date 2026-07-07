@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Send, UserRound } from "lucide-react";
+import { ArrowLeft, Send, UserRound, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -134,8 +134,16 @@ export default function ConversationThreadPage() {
           <p className="font-medium">{otherName}</p>
           {otherTyping && <p className="text-xs text-primary">typing…</p>}
         </div>
-        {conversation?.needsAdminReview && (
-          <Badge variant="warning" className="ml-auto">Awaiting admin</Badge>
+        {otherIsAdmin && (
+          conversation?.needsAdminReview ? (
+            <Badge variant="success" className="ml-auto gap-1">
+              <UserRound className="h-3 w-3" /> Human mode
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="ml-auto gap-1">
+              <Zap className="h-3 w-3" /> AI mode · Quick replies
+            </Badge>
+          )
         )}
       </div>
 
