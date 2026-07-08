@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { walletApi } from "@/lib/api";
 import type { Wallet, Transaction, Withdrawal } from "@/types";
 import { useAuthStore } from "@/store/auth";
@@ -15,7 +16,10 @@ import { ArrowDownToLine, ArrowUpFromLine, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
+const maskAccountNumber = (n: string) => (n.length <= 4 ? n : `•••• ${n.slice(-4)}`);
+
 export default function WalletPage() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [txs, setTxs] = useState<Transaction[]>([]);
@@ -100,7 +104,20 @@ export default function WalletPage() {
         {user?.role === "business" && (
           <Button onClick={() => setTopupOpen(true)}><ArrowUpFromLine className="mr-2 h-4 w-4" />Top Up</Button>
         )}
-        <Button onClick={() => setWithdrawOpen(true)} disabled={!wallet || wallet.availableBalance < 0.1}>
+        <Button
+          onClick={() => {
+            if (!user?.bankAccount) {
+              toast({
+                title: "Add a payout bank account first",
+                description: "Go to Profile to add one before requesting a withdrawal.",
+              });
+              router.push("/dashboard/profile");
+              return;
+            }
+            setWithdrawOpen(true);
+          }}
+          disabled={!wallet || wallet.availableBalance < 0.1}
+        >
           <ArrowDownToLine className="mr-2 h-4 w-4" />Withdraw
         </Button>
       </div>
@@ -161,6 +178,11 @@ export default function WalletPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Request Withdrawal</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">Available: {formatCurrency(wallet?.availableBalance ?? 0)}</p>
+          {user?.bankAccount && (
+            <p className="text-sm text-muted-foreground">
+              To: {user.bankAccount.bankName} · {maskAccountNumber(user.bankAccount.accountNumber)} ({user.bankAccount.accountName})
+            </p>
+          )}
           <div className="space-y-2">
             <Label>Amount (USD, min $0.10)</Label>
             <Input type="number" min="0.1" step="0.01" max={wallet?.availableBalance} placeholder="50" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />

@@ -9,7 +9,8 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	auth := middleware.RequireAuth()
 
 	// Paystack webhook — no auth, Paystack verifies via HMAC signature.
-	rg.POST("/wallet/topup/webhook", handleTopupWebhook)
+	// Handles both charge (top-up) and transfer (payout) events.
+	rg.POST("/wallet/topup/webhook", handlePaystackWebhook)
 
 	w := rg.Group("/wallet", auth)
 	{

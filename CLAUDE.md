@@ -23,7 +23,7 @@ A social engagement marketplace MVP.
 | Backend | Go + Gin |
 | Database | MongoDB (mongo-driver/v2) |
 | Cache / Rate limiting | Redis |
-| Payments | Stripe (Payment Intents for top-ups, Stripe Connect for payouts) |
+| Payments | Paystack (Transactions API for top-ups, Transfers API for payouts) |
 | Real-time | SSE — Server-Sent Events (replaces Socket.IO; Go-native, sufficient for push notifications) |
 | Email | Go SMTP (net/smtp or gomail) |
 | Infrastructure | Docker + Docker Compose |
@@ -61,7 +61,7 @@ A social engagement marketplace MVP.
 5. Admin reviews and approves or rejects
 6. On approval: business wallet locked → platform commission deducted → promoter pending balance
 7. After 48h hold: promoter pending → available balance
-8. Promoter withdraws via Stripe Connect
+8. Promoter withdraws via Paystack Transfer to a verified bank account on file
 
 ---
 
@@ -123,14 +123,57 @@ See `apps/api/.env.example` and `apps/web/.env.example` once created.
 | 9 | Frontend: Next.js pages and dashboards | ✅ Complete |
 | 10 | Production deploy config (CI/CD, Fly.io, Vercel, VPS) | ✅ Complete |
 | 11 | Polish + missing UX (profile, social accounts, campaign edit, pagination, mobile nav) | ✅ Complete |
+| 12 | Real Paystack payouts: bank account verification, Transfer API, admin-approval-triggered transfers, async webhook completion | ✅ Complete |
 
 ---
 
 ## Current Status
 
-**Last session:** Session 11 — Phase 11 complete. Profile page, social account management, campaign edit, pagination controls, mobile sidebar.
+**Last session:** Session 12 — Phase 12 complete. Replaced the dummy withdrawal system (admin approval used to just flip a status with no money movement) with real Paystack Transfers. See "Phase 12 — Files Created" below.
 
-**Next action:** Optional Phase 12: E2E tests (Playwright), campaign analytics charts, or additional hardening.
+**Next action:** Requires the user's own Paystack test credentials to fully verify the `InitiateTransfer` → webhook → `completed` path end-to-end (not something that can be faked locally) — run one real test withdrawal through once test keys with Transfers enabled + OTP disabled are available. Otherwise: E2E tests (Playwright), campaign analytics charts, or additional hardening.
+
+---
+
+## Phase 12 — Files Created
+
+```
+apps/api/
+  internal/services/paystack/paystack.go       Added: ListBanks, ResolveAccount, CreateTransferRecipient, InitiateTransfer (+ shared doJSON[T] helper alongside the existing Initialize/Verify)
+  internal/models/user.go                      Added BankAccount struct (bankCode, bankName, accountNumber, accountName, recipientCode) + BankAccount *BankAccount field on User
+
+  internal/modules/users/dto.go                 Added SetBankAccountRequest, BankResponse, BankAccountResponse (+ mapper); BankAccount added to UserResponse
+  internal/modules/users/service.go             Added listBanks (proxies Paystack), setBankAccount (resolves via Paystack before saving — never trusts a user-typed account name)
+  internal/modules/users/handler.go             Added handleListBanks, handleSetBankAccount
+  internal/modules/users/routes.go               GET /users/banks, POST /users/bank-account
+
+  internal/modules/auth/dto.go                  Added BankAccountResponse + BankAccount field to auth's own UserResponse (this is what populates the frontend Zustand auth store via /auth/me)
+
+  internal/modules/wallet/service.go            requestWithdrawal now requires a saved BankAccount (fails fast before admin ever sees it); added ErrNoBankAccount/ErrWithdrawalNotFound/ErrNotReviewable/ErrTransferOTPRequired
+  internal/modules/wallet/admin.go              NEW — AdminApproveWithdrawal (creates/reuses Paystack transfer recipient, calls InitiateTransfer, branches on success/pending/otp), AdminRejectWithdrawal, RefundAndFailWithdrawal, CompleteWithdrawal, shared refundWithdrawal helper
+  internal/modules/wallet/handler.go            handleTopupWebhook → handlePaystackWebhook: now also handles transfer.success (marks withdrawal completed) and transfer.failed/transfer.reversed (refunds), in addition to the existing charge.success top-up path. Same route URL — no Paystack dashboard change needed.
+
+  internal/modules/admin/service.go             approveWithdrawal/rejectWithdrawal are now thin wrappers delegating to wallet.AdminApproveWithdrawal/AdminRejectWithdrawal (dedupes the refund logic that used to be duplicated here)
+  internal/modules/admin/handler.go             Added error cases for wallet.ErrPaystackNotConfigured (503), wallet.ErrNoBankAccount/ErrTransferOTPRequired (400)
+
+  .env.example                                  Documented the two Paystack dashboard prerequisites for payouts to work (disable OTP for transfers, fund the balance)
+
+apps/web/src/
+  types/index.ts                                Added BankAccount interface + bankAccount? field on User
+  lib/api.ts                                    usersApi.listBanks, usersApi.setBankAccount
+
+  app/dashboard/profile/page.tsx                Added "Payout Bank Account" card (all roles) — shows masked account + resolved name, dialog with searchable bank picker + account number, saves via setBankAccount
+  app/dashboard/wallet/page.tsx                 Withdraw button now checks user.bankAccount before opening the dialog (redirects to Profile if missing); withdraw dialog shows the destination account
+  app/dashboard/admin/withdrawals/page.tsx      Added "processing" to the status filter (was previously unreachable in the UI even though the backend used it)
+```
+
+Key behaviours:
+- `BankAccount.AccountName` is always resolved from Paystack (`GET /bank/resolve`), never taken from user input — a payout can't be silently misdirected to a name that doesn't match the real account
+- Changing a bank account clears the cached Paystack `recipientCode` (whole subdocument is replaced) so a stale recipient tied to old bank details is never reused
+- `AdminApproveWithdrawal` reference sent to Paystack is the withdrawal's own Mongo `_id` hex — the webhook parses it straight back to look the withdrawal up, no separate mapping table needed
+- Transfer status `"otp"` is treated as a configuration error (`ErrTransferOTPRequired`), not a failure — nothing is charged or marked failed, so admin can fix the Paystack dashboard setting and retry the same withdrawal
+- `transfer.failed`/`transfer.reversed` webhook and admin rejection both funnel through the same `refundWithdrawal` helper — one code path for "money didn't go out, give it back"
+- Withdrawal fulfillment logic (approve/reject/refund/complete) now lives entirely in the `wallet` package rather than being split/duplicated between `wallet` and `admin` — `admin/service.go` just delegates and translates a couple of sentinel errors at the boundary
 
 ---
 
@@ -455,7 +498,7 @@ docker-compose.yml
 | Component library | shadcn/ui | Fastest path to premium design (Stripe/Linear aesthetic) |
 | Proof verification | URL + screenshot, manual admin review | Instagram/Twitter APIs don't support programmatic repost verification |
 | Payout hold period | 48 hours | Standard fraud buffer |
-| Stripe payout model | Stripe Connect Express | Only scalable option for paying out to individual users |
+| Payout model | Paystack Transfers to a verified bank account | Platform migrated off Stripe (Paystack fits Nigeria-first payment rails); users add a Paystack-verified bank account, admin approval triggers a real Transfer, completion confirmed async via webhook |
 | Commission timing | Deducted at point of approval | Simplest to audit and reverse |
 | MVP platforms | Instagram + Twitter/X only | Scope control; architecture supports adding more later |
 

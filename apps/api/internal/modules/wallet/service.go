@@ -23,6 +23,10 @@ var (
 	ErrBelowMinimum        = errors.New("minimum withdrawal amount is 0.10")
 	ErrPaystackNotConfigured = errors.New("payment processing is not configured — add PAYSTACK_SECRET_KEY")
 	ErrPaymentNotSuccessful  = errors.New("payment was not completed successfully")
+	ErrNoBankAccount         = errors.New("add a payout bank account before requesting a withdrawal")
+	ErrWithdrawalNotFound    = errors.New("withdrawal not found")
+	ErrNotReviewable         = errors.New("withdrawal is not in a reviewable state")
+	ErrTransferOTPRequired   = errors.New("Paystack requires manual OTP confirmation for transfers — disable OTP for transfers in the Paystack dashboard to enable automated payouts")
 )
 
 // ── Wallet read ──────────────────────────────────────────────
@@ -228,6 +232,15 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 	objID, err := bson.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, ErrWalletNotFound
+	}
+
+	var user models.User
+	if err := database.GetCollection(models.UsersCollection).
+		FindOne(ctx, bson.M{"_id": objID}).Decode(&user); err != nil {
+		return nil, ErrWalletNotFound
+	}
+	if user.BankAccount == nil {
+		return nil, ErrNoBankAccount
 	}
 
 	walletCol := database.GetCollection(models.WalletsCollection)

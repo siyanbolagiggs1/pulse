@@ -8,6 +8,13 @@ export type WithdrawalStatus = "pending" | "processing" | "completed" | "failed"
 
 // ── User ────────────────────────────────────────────────────
 
+export interface BankAccount {
+  bankCode: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -18,6 +25,7 @@ export interface User {
   isSuspended: boolean;
   trustScore: number;
   badges: string[];
+  bankAccount?: BankAccount;
   createdAt: string;
   updatedAt: string;
 }

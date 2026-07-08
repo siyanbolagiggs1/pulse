@@ -13,5 +13,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		u.GET("/search",                    handleSearchUsers)
 		u.POST("/social-accounts",          handleConnectSocialAccount)
 		u.DELETE("/social-accounts/:id",    handleDeleteSocialAccount)
+		u.GET("/banks",                     handleListBanks)
+		u.POST("/bank-account",             handleSetBankAccount)
 	}
 }

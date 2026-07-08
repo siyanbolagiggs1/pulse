@@ -9,8 +9,9 @@ import (
 
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
-	"github.com/pulse/api/internal/services/scoring"
 	"github.com/pulse/api/internal/modules/notifications"
+	"github.com/pulse/api/internal/modules/wallet"
+	"github.com/pulse/api/internal/services/scoring"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -20,6 +21,20 @@ var (
 	ErrNotFound      = errors.New("resource not found")
 	ErrNotReviewable = errors.New("resource is not in a reviewable state")
 )
+
+// translateWithdrawalErr maps wallet package sentinel errors onto admin's
+// own so admin/handler.go's existing error switches don't need to know
+// about the wallet package's internals.
+func translateWithdrawalErr(err error) error {
+	switch {
+	case errors.Is(err, wallet.ErrWithdrawalNotFound):
+		return ErrNotFound
+	case errors.Is(err, wallet.ErrNotReviewable):
+		return ErrNotReviewable
+	default:
+		return err
+	}
+}
 
 // ── Platform stats ───────────────────────────────────────────
 
@@ -371,104 +386,19 @@ func listWithdrawals(ctx context.Context, q WithdrawalQuery) ([]models.Withdrawa
 }
 
 func approveWithdrawal(ctx context.Context, withdrawalID string) (*models.Withdrawal, error) {
-	wObjID, err := bson.ObjectIDFromHex(withdrawalID)
+	w, err := wallet.AdminApproveWithdrawal(ctx, withdrawalID)
 	if err != nil {
-		return nil, ErrNotFound
+		return nil, translateWithdrawalErr(err)
 	}
-
-	withdrawalCol := database.GetCollection(models.WithdrawalsCollection)
-	var w models.Withdrawal
-	if err := withdrawalCol.FindOne(ctx, bson.M{"_id": wObjID}).Decode(&w); err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	if w.Status != models.WithdrawalPending {
-		return nil, ErrNotReviewable
-	}
-
-	now := time.Now().UTC()
-
-	_, _ = withdrawalCol.UpdateOne(ctx,
-		bson.M{"_id": wObjID},
-		bson.M{"$set": bson.M{
-			"status":      models.WithdrawalProcessing,
-			"processedAt": now,
-		}},
-	)
-
-	w.Status = models.WithdrawalProcessing
-	w.ProcessedAt = now
-
-	go notifications.Send(context.Background(), w.UserID, models.NotifWithdrawalProcessed,
-		"Withdrawal Approved",
-		fmt.Sprintf("Your withdrawal of %.2f USD has been approved and is being transferred.", w.NetAmount),
-		map[string]interface{}{"withdrawalId": w.ID.Hex(), "amount": w.NetAmount})
-
-	return &w, nil
+	return w, nil
 }
 
 func rejectWithdrawal(ctx context.Context, withdrawalID, reason string) (*models.Withdrawal, error) {
-	wObjID, err := bson.ObjectIDFromHex(withdrawalID)
+	w, err := wallet.AdminRejectWithdrawal(ctx, withdrawalID, reason)
 	if err != nil {
-		return nil, ErrNotFound
+		return nil, translateWithdrawalErr(err)
 	}
-
-	withdrawalCol := database.GetCollection(models.WithdrawalsCollection)
-	var w models.Withdrawal
-	if err := withdrawalCol.FindOne(ctx, bson.M{"_id": wObjID}).Decode(&w); err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	if w.Status != models.WithdrawalPending {
-		return nil, ErrNotReviewable
-	}
-
-	now := time.Now().UTC()
-
-	// Refund to promoter's available balance.
-	_, _ = database.GetCollection(models.WalletsCollection).UpdateOne(ctx,
-		bson.M{"userId": w.UserID},
-		bson.M{
-			"$inc": bson.M{"availableBalance": w.Amount},
-			"$set": bson.M{"updatedAt": now},
-		},
-	)
-
-	// Record refund transaction.
-	var wallet models.Wallet
-	if err := database.GetCollection(models.WalletsCollection).
-		FindOne(ctx, bson.M{"userId": w.UserID}).Decode(&wallet); err == nil {
-		tx := models.Transaction{
-			WalletID:     wallet.ID,
-			UserID:       w.UserID,
-			Type:         models.TxRefund,
-			Amount:       w.Amount,
-			BalanceAfter: wallet.AvailableBalance + w.Amount,
-			ReferenceID:  w.ID.Hex(),
-			Description:  fmt.Sprintf("Withdrawal rejected: %s", reason),
-			CreatedAt:    now,
-		}
-		_, _ = database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx)
-	}
-
-	_, _ = withdrawalCol.UpdateOne(ctx,
-		bson.M{"_id": wObjID},
-		bson.M{"$set": bson.M{"status": models.WithdrawalFailed, "processedAt": now}},
-	)
-
-	w.Status = models.WithdrawalFailed
-	w.ProcessedAt = now
-
-	go notifications.Send(context.Background(), w.UserID, models.NotifWithdrawalProcessed,
-		"Withdrawal Rejected",
-		fmt.Sprintf("Your withdrawal of %.2f USD was rejected and returned to your wallet: %s", w.Amount, reason),
-		map[string]interface{}{"withdrawalId": w.ID.Hex(), "amount": w.Amount, "reason": reason})
-
-	return &w, nil
+	return w, nil
 }
 
 // ── Social account review ────────────────────────────────────

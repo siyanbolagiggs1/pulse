@@ -20,6 +20,7 @@ Businesses run repost campaigns. Promoters earn money sharing them.
 | 9 | Frontend pages + dashboards | ✅ Complete |
 | 10 | Production deploy config (CI/CD, Railway, Vercel) | ✅ Complete |
 | 11 | Polish + missing UX (profile, social accounts, campaign edit, pagination, mobile nav) | ✅ Complete |
+| 12 | Real Paystack payouts (bank account verification, Transfer API, webhook completion) | ✅ Complete |
 
 ---
 
@@ -398,6 +399,8 @@ pulse/
 | GET | `/api/users/influence-score` | Bearer | Influence score breakdown per social account |
 | POST | `/api/users/social-accounts` | Bearer | Connect a social account (Instagram or Twitter) |
 | DELETE | `/api/users/social-accounts/:id` | Bearer | Remove a social account |
+| GET | `/api/users/banks` | Bearer | List banks for the configured Paystack currency |
+| POST | `/api/users/bank-account` | Bearer | Verify + save a payout bank account (resolves account name via Paystack) |
 
 ### Campaigns
 
@@ -429,8 +432,8 @@ pulse/
 | GET | `/api/wallet/transactions` | Bearer | any | Paginated transaction history |
 | POST | `/api/wallet/topup` | Bearer | business | Initiate Paystack payment → returns `authorizationUrl` |
 | GET | `/api/wallet/topup/verify` | Bearer | any | Verify payment by reference after Paystack redirect |
-| POST | `/api/wallet/topup/webhook` | — | — | Paystack webhook: credits wallet on `charge.success` |
-| POST | `/api/wallet/withdraw` | Bearer | promoter | Request withdrawal (creates pending record) |
+| POST | `/api/wallet/topup/webhook` | — | — | Paystack webhook: credits wallet on `charge.success`; completes/refunds withdrawals on `transfer.success`/`transfer.failed`/`transfer.reversed` |
+| POST | `/api/wallet/withdraw` | Bearer | promoter | Request withdrawal (requires a saved bank account; creates pending record) |
 | GET | `/api/wallet/withdrawals` | Bearer | promoter | Paginated withdrawal history |
 
 ### Admin
@@ -445,7 +448,7 @@ pulse/
 | GET | `/api/admin/fraud-flags` | Bearer | admin | List fraud flags |
 | POST | `/api/admin/fraud-flags/:id/resolve` | Bearer | admin | Mark fraud flag resolved |
 | GET | `/api/admin/withdrawals` | Bearer | admin | List withdrawals with filters |
-| POST | `/api/admin/withdrawals/:id/approve` | Bearer | admin | Approve withdrawal → admin processes payout manually |
+| POST | `/api/admin/withdrawals/:id/approve` | Bearer | admin | Approve withdrawal → creates/reuses a Paystack transfer recipient and initiates a real Transfer |
 | POST | `/api/admin/withdrawals/:id/reject` | Bearer | admin | Reject → refunds balance to promoter wallet |
 
 ### Notifications
@@ -488,6 +491,9 @@ Make sure `MONGO_ROOT_USER` and `MONGO_ROOT_PASS` in your `.env` match what's in
 
 **Paystack webhook not receiving events**
 Make sure your webhook URL is registered in the Paystack dashboard (Settings → Webhooks) and that `PAYSTACK_SECRET_KEY` is set correctly.
+
+**Withdrawal approval fails with an OTP error**
+Admin-approving a withdrawal calls Paystack's Transfers API directly, with no human available to answer an SMS OTP prompt. Go to the Paystack dashboard → Settings → Preferences and disable OTP for transfers, then retry the approval — nothing was charged or moved on the failed attempt, so it's safe to just retry.
 
 **Emails not sending**
 For Gmail, you must use an [App Password](https://myaccount.google.com/apppasswords), not your main Gmail password. Enable 2FA first, then generate the app password and set it as `SMTP_PASS`.

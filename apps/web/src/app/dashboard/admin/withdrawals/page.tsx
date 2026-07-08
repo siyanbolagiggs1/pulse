@@ -23,7 +23,7 @@ interface Withdrawal {
 }
 
 const statusVariant: Record<string, "warning" | "success" | "destructive" | "secondary"> = {
-  pending: "warning", completed: "success", failed: "destructive",
+  pending: "warning", processing: "warning", completed: "success", failed: "destructive",
 };
 
 export default function AdminWithdrawalsPage() {
@@ -78,6 +78,7 @@ export default function AdminWithdrawalsPage() {
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="processing">Processing</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="failed">Failed</SelectItem>
           </SelectContent>

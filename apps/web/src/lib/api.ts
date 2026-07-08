@@ -7,6 +7,7 @@ import type {
   Wallet,
   Transaction,
   Withdrawal,
+  BankAccount,
   Notification,
   Conversation,
   AdminConversation,
@@ -44,6 +45,9 @@ export const usersApi = {
     api.get<{ success: boolean; data: { id: string; name: string; avatar?: string }[] }>("/users/search", { params: { q } }),
   connectSocialAccount: (body: object) => api.post<{ success: boolean; data: SocialAccount }>("/users/social-accounts", body),
   deleteSocialAccount: (id: string) => api.delete(`/users/social-accounts/${id}`),
+  listBanks: () => api.get<{ success: boolean; data: { code: string; name: string }[] }>("/users/banks"),
+  setBankAccount: (body: { bankCode: string; accountNumber: string }) =>
+    api.post<{ success: boolean; data: BankAccount }>("/users/bank-account", body),
 };
 
 // ── Campaigns ────────────────────────────────────────────────

@@ -22,6 +22,19 @@ const (
 	BadgeTopCreator       VerificationBadge = "top_creator"
 )
 
+// BankAccount is a verified Paystack payout destination. AccountName is
+// resolved from the bank via Paystack, never taken from user input, so a
+// payout can't be silently misdirected to a name that doesn't match the
+// account. RecipientCode caches the Paystack transfer recipient id and must
+// be cleared whenever the underlying bank details change.
+type BankAccount struct {
+	BankCode      string `bson:"bankCode"                json:"bankCode"`
+	BankName      string `bson:"bankName"                json:"bankName"`
+	AccountNumber string `bson:"accountNumber"            json:"accountNumber"`
+	AccountName   string `bson:"accountName"              json:"accountName"`
+	RecipientCode string `bson:"recipientCode,omitempty"  json:"-"`
+}
+
 type User struct {
 	ID              bson.ObjectID       `bson:"_id,omitempty"       json:"id"`
 	Email           string              `bson:"email"               json:"email"`
@@ -33,6 +46,7 @@ type User struct {
 	IsSuspended     bool                `bson:"isSuspended"         json:"isSuspended"`
 	TrustScore      float64             `bson:"trustScore"          json:"trustScore"`
 	Badges          []VerificationBadge `bson:"badges"              json:"badges"`
+	BankAccount     *BankAccount        `bson:"bankAccount,omitempty" json:"bankAccount,omitempty"`
 
 	RefreshToken        string    `bson:"refreshToken"         json:"-"`
 	EmailVerifyToken    string    `bson:"emailVerifyToken"     json:"-"`

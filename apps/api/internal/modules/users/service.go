@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/database"
 	"github.com/pulse/api/internal/models"
+	"github.com/pulse/api/internal/services/paystack"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -23,6 +25,8 @@ var (
 	ErrDuplicatePlatform      = errors.New("a social account for this platform is already connected")
 	ErrDuplicateSocialAccount = errors.New("this social account is already connected to another user")
 	ErrCooldownActive         = errors.New("you can request re-verification once every 30 days")
+	ErrPaystackNotConfigured  = errors.New("payment processing is not configured — add PAYSTACK_SECRET_KEY")
+	ErrInvalidBankAccount     = errors.New("could not verify this bank account — check the account number and bank")
 )
 
 func getMe(ctx context.Context, userID string) (*models.User, []models.SocialAccount, error) {
@@ -250,6 +254,66 @@ func searchUsers(ctx context.Context, callerRole, query string, limit int) ([]mo
 		return nil, err
 	}
 	return users, nil
+}
+
+// listBanks proxies Paystack's bank list for the platform's configured
+// currency so the frontend can offer a bank picker for bank-account setup.
+func listBanks(ctx context.Context) ([]paystack.Bank, error) {
+	if config.App.PaystackSecretKey == "" {
+		return nil, ErrPaystackNotConfigured
+	}
+	return paystack.ListBanks(config.App.PaystackSecretKey, config.App.PaystackCurrency)
+}
+
+// setBankAccount verifies the account via Paystack (so a payout destination
+// is always a real, named account — never an unverified user-typed string)
+// and persists it. Any previously cached Paystack transfer recipient is
+// dropped since it belongs to the old account details.
+func setBankAccount(ctx context.Context, userID string, req SetBankAccountRequest) (*models.BankAccount, error) {
+	if config.App.PaystackSecretKey == "" {
+		return nil, ErrPaystackNotConfigured
+	}
+
+	objID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	resolved, err := paystack.ResolveAccount(config.App.PaystackSecretKey, req.AccountNumber, req.BankCode)
+	if err != nil {
+		return nil, ErrInvalidBankAccount
+	}
+
+	banks, err := paystack.ListBanks(config.App.PaystackSecretKey, config.App.PaystackCurrency)
+	if err != nil {
+		return nil, err
+	}
+	bankName := req.BankCode
+	for _, b := range banks {
+		if b.Code == req.BankCode {
+			bankName = b.Name
+			break
+		}
+	}
+
+	bankAccount := models.BankAccount{
+		BankCode:      req.BankCode,
+		BankName:      bankName,
+		AccountNumber: resolved.AccountNumber,
+		AccountName:   resolved.AccountName,
+	}
+
+	_, err = database.GetCollection(models.UsersCollection).UpdateOne(ctx,
+		bson.M{"_id": objID},
+		bson.M{
+			"$set": bson.M{"bankAccount": bankAccount, "updatedAt": time.Now().UTC()},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bankAccount, nil
 }
 
 func deleteSocialAccount(ctx context.Context, userID, accountID string) error {

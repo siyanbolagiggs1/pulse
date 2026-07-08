@@ -76,6 +76,50 @@ func handleSearchUsers(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "", resp)
 }
 
+// GET /api/users/banks
+func handleListBanks(c *gin.Context) {
+	banks, err := listBanks(c.Request.Context())
+	if err != nil {
+		if errors.Is(err, ErrPaystackNotConfigured) {
+			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch banks")
+		return
+	}
+
+	resp := make([]BankResponse, 0, len(banks))
+	for _, b := range banks {
+		resp = append(resp, BankResponse{Code: b.Code, Name: b.Name})
+	}
+	utils.OK(c, http.StatusOK, "", resp)
+}
+
+// POST /api/users/bank-account
+func handleSetBankAccount(c *gin.Context) {
+	var req SetBankAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithErrors(c, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+	bankAccount, err := setBankAccount(c.Request.Context(), userID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrPaystackNotConfigured):
+			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
+		case errors.Is(err, ErrInvalidBankAccount):
+			utils.Fail(c, http.StatusBadRequest, err.Error())
+		default:
+			utils.Fail(c, http.StatusInternalServerError, "Failed to save bank account")
+		}
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "Bank account verified and saved", toBankAccountResponse(bankAccount))
+}
+
 // DELETE /api/users/social-accounts/:id
 func handleDeleteSocialAccount(c *gin.Context) {
 	id := c.Param("id")

@@ -13,6 +13,7 @@ import (
 	"github.com/pulse/api/internal/middleware"
 	"github.com/pulse/api/internal/services/paystack"
 	"github.com/pulse/api/internal/utils"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // GET /api/wallet
@@ -120,8 +121,10 @@ func handleVerifyTopup(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "Wallet credited successfully", nil)
 }
 
-// POST /api/wallet/topup/webhook  (no auth — Paystack calls this)
-func handleTopupWebhook(c *gin.Context) {
+// POST /api/wallet/topup/webhook  (no auth — Paystack calls this for both
+// charge and transfer events; the route name is legacy but left unchanged
+// so the URL already configured in the Paystack dashboard keeps working)
+func handlePaystackWebhook(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		utils.Fail(c, http.StatusBadRequest, "Could not read request body")
@@ -137,10 +140,12 @@ func handleTopupWebhook(c *gin.Context) {
 	var event struct {
 		Event string `json:"event"`
 		Data  struct {
-			Reference string         `json:"reference"`
-			Status    string         `json:"status"`
-			Amount    int64          `json:"amount"`
-			Metadata  map[string]any `json:"metadata"`
+			Reference    string         `json:"reference"`
+			TransferCode string         `json:"transfer_code"`
+			Status       string         `json:"status"`
+			Amount       int64          `json:"amount"`
+			Reason       string         `json:"reason"`
+			Metadata     map[string]any `json:"metadata"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &event); err != nil {
@@ -148,22 +153,32 @@ func handleTopupWebhook(c *gin.Context) {
 		return
 	}
 
-	if event.Event != "charge.success" {
-		c.Status(http.StatusOK)
-		return
-	}
+	switch event.Event {
+	case "charge.success":
+		userID, _ := event.Data.Metadata["userID"].(string)
+		eventType, _ := event.Data.Metadata["type"].(string)
+		if userID == "" || eventType != "wallet_topup" {
+			break
+		}
+		amount := float64(event.Data.Amount) / 100.0
+		if err := creditWallet(c.Request.Context(), userID, amount, event.Data.Reference); err != nil {
+			utils.Fail(c, http.StatusInternalServerError, "Failed to credit wallet")
+			return
+		}
 
-	userID, _ := event.Data.Metadata["userID"].(string)
-	eventType, _ := event.Data.Metadata["type"].(string)
-	if userID == "" || eventType != "wallet_topup" {
-		c.Status(http.StatusOK)
-		return
-	}
+	case "transfer.success":
+		if withdrawalID, err := bson.ObjectIDFromHex(event.Data.Reference); err == nil {
+			_ = CompleteWithdrawal(c.Request.Context(), withdrawalID)
+		}
 
-	amount := float64(event.Data.Amount) / 100.0
-	if err := creditWallet(c.Request.Context(), userID, amount, event.Data.Reference); err != nil {
-		utils.Fail(c, http.StatusInternalServerError, "Failed to credit wallet")
-		return
+	case "transfer.failed", "transfer.reversed":
+		if withdrawalID, err := bson.ObjectIDFromHex(event.Data.Reference); err == nil {
+			reason := event.Data.Reason
+			if reason == "" {
+				reason = "transfer " + event.Event
+			}
+			_ = RefundAndFailWithdrawal(c.Request.Context(), withdrawalID, reason)
+		}
 	}
 
 	c.Status(http.StatusOK)
@@ -181,9 +196,7 @@ func handleWithdraw(c *gin.Context) {
 	w, err := requestWithdrawal(c.Request.Context(), userID, req.Amount)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrBelowMinimum):
-			utils.Fail(c, http.StatusBadRequest, err.Error())
-		case errors.Is(err, ErrInsufficientBalance):
+		case errors.Is(err, ErrBelowMinimum), errors.Is(err, ErrInsufficientBalance), errors.Is(err, ErrNoBankAccount):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
 		default:
 			utils.Fail(c, http.StatusInternalServerError, "Failed to process withdrawal")

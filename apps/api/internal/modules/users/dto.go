@@ -19,7 +19,36 @@ type ConnectSocialAccountRequest struct {
 	ProfileURL string          `json:"profileUrl" binding:"required,url"`
 }
 
+type SetBankAccountRequest struct {
+	BankCode      string `json:"bankCode"      binding:"required"`
+	AccountNumber string `json:"accountNumber" binding:"required,min=6,max=20"`
+}
+
 // ── Responses ────────────────────────────────────────────────
+
+type BankResponse struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+type BankAccountResponse struct {
+	BankCode      string `json:"bankCode"`
+	BankName      string `json:"bankName"`
+	AccountNumber string `json:"accountNumber"`
+	AccountName   string `json:"accountName"`
+}
+
+func toBankAccountResponse(b *models.BankAccount) *BankAccountResponse {
+	if b == nil {
+		return nil
+	}
+	return &BankAccountResponse{
+		BankCode:      b.BankCode,
+		BankName:      b.BankName,
+		AccountNumber: b.AccountNumber,
+		AccountName:   b.AccountName,
+	}
+}
 
 type SocialAccountResponse struct {
 	ID             string                     `json:"id"`
@@ -44,6 +73,7 @@ type UserResponse struct {
 	IsSuspended     bool                       `json:"isSuspended"`
 	TrustScore      float64                    `json:"trustScore"`
 	Badges          []models.VerificationBadge `json:"badges"`
+	BankAccount     *BankAccountResponse       `json:"bankAccount,omitempty"`
 	SocialAccounts  []SocialAccountResponse    `json:"socialAccounts"`
 	CreatedAt       time.Time                  `json:"createdAt"`
 }
@@ -83,6 +113,7 @@ func toUserResponse(u *models.User, accounts []models.SocialAccount) UserRespons
 		IsSuspended:     u.IsSuspended,
 		TrustScore:      u.TrustScore,
 		Badges:          badges,
+		BankAccount:     toBankAccountResponse(u.BankAccount),
 		SocialAccounts:  socialResps,
 		CreatedAt:       u.CreatedAt,
 	}

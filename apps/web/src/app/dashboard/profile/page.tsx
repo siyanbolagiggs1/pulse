@@ -11,10 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Trash2, Plus, ExternalLink, Loader2 } from "lucide-react";
+import { Trash2, Plus, ExternalLink, Loader2, Landmark, Pencil } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 type Platform = "instagram" | "twitter" | "tiktok";
+
+const maskAccountNumber = (n: string) => (n.length <= 4 ? n : `•••• ${n.slice(-4)}`);
 
 const platformLabels: Record<Platform, string> = {
   instagram: "Instagram",
@@ -35,6 +37,13 @@ export default function ProfilePage() {
 
   const [name, setName] = useState(user?.name ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
+  const [bankOpen, setBankOpen] = useState(false);
+  const [savingBank, setSavingBank] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
 
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
@@ -124,6 +133,37 @@ export default function ProfilePage() {
     setUsername("");
   };
 
+  const openBankDialog = () => {
+    setBankSearch("");
+    setBankCode("");
+    setAccountNumber("");
+    setBankOpen(true);
+    if (banks.length === 0) {
+      usersApi.listBanks()
+        .then((r) => setBanks(r.data.data ?? []))
+        .catch(() => toast({ title: "Failed to load bank list", variant: "destructive" }));
+    }
+  };
+
+  const handleSaveBankAccount = async () => {
+    if (!bankCode) return toast({ title: "Select a bank", variant: "destructive" });
+    if (!accountNumber.trim()) return toast({ title: "Account number is required", variant: "destructive" });
+
+    setSavingBank(true);
+    try {
+      const res = await usersApi.setBankAccount({ bankCode, accountNumber: accountNumber.trim() });
+      if (user) updateUser({ ...user, bankAccount: res.data.data });
+      setBankOpen(false);
+      toast({ title: "Bank account saved", description: `Verified: ${res.data.data.accountName}` });
+    } catch (err: any) {
+      toast({ title: "Could not verify account", description: err?.response?.data?.message, variant: "destructive" });
+    } finally { setSavingBank(false); }
+  };
+
+  const filteredBanks = bankSearch.trim()
+    ? banks.filter((b) => b.name.toLowerCase().includes(bankSearch.trim().toLowerCase()))
+    : banks;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -171,6 +211,32 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Payout Bank Account</CardTitle>
+            <Button size="sm" variant={user?.bankAccount ? "outline" : "default"} onClick={openBankDialog}>
+              {user?.bankAccount ? <><Pencil className="mr-2 h-4 w-4" />Update</> : <><Plus className="mr-2 h-4 w-4" />Add</>}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {user?.bankAccount ? (
+            <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+              <Landmark className="h-8 w-8 text-muted-foreground shrink-0" />
+              <div>
+                <p className="font-medium">{user.bankAccount.bankName}</p>
+                <p className="text-sm text-muted-foreground">{maskAccountNumber(user.bankAccount.accountNumber)} · {user.bankAccount.accountName}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No bank account on file — required before you can request a withdrawal.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -277,6 +343,53 @@ export default function ProfilePage() {
             <Button variant="outline" onClick={() => setConnectOpen(false)}>Cancel</Button>
             <Button onClick={handleConnect} disabled={connecting}>
               {connecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting…</> : "Submit for Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bankOpen} onOpenChange={setBankOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Payout Bank Account</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Bank</Label>
+              <Input
+                placeholder="Search banks…"
+                value={bankSearch}
+                onChange={(e) => setBankSearch(e.target.value)}
+              />
+              <Select value={bankCode} onValueChange={setBankCode}>
+                <SelectTrigger className="bg-background"><SelectValue placeholder="Select bank" /></SelectTrigger>
+                <SelectContent>
+                  {filteredBanks.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      {banks.length === 0 ? "Loading…" : "No matches"}
+                    </div>
+                  ) : filteredBanks.map((b) => (
+                    <SelectItem key={b.code} value={b.code}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Account Number</Label>
+              <Input
+                placeholder="0123456789"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              We verify this account with your bank before saving it — the account holder's name will be shown to confirm it's really yours.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBankOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveBankAccount} disabled={savingBank}>
+              {savingBank ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying…</> : "Verify & Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

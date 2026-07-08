@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
 	"github.com/pulse/api/internal/models"
+	"github.com/pulse/api/internal/modules/wallet"
 	"github.com/pulse/api/internal/utils"
 )
 
@@ -197,7 +198,11 @@ func handleApproveWithdrawal(c *gin.Context) {
 			utils.Fail(c, http.StatusNotFound, "Withdrawal not found")
 		case errors.Is(err, ErrNotReviewable):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
-default:
+		case errors.Is(err, wallet.ErrPaystackNotConfigured):
+			utils.Fail(c, http.StatusServiceUnavailable, err.Error())
+		case errors.Is(err, wallet.ErrNoBankAccount), errors.Is(err, wallet.ErrTransferOTPRequired):
+			utils.Fail(c, http.StatusBadRequest, err.Error())
+		default:
 			utils.Fail(c, http.StatusInternalServerError, "Failed to approve withdrawal")
 		}
 		return

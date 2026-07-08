@@ -31,6 +31,25 @@ type ResetPasswordRequest struct {
 
 // ── Responses ────────────────────────────────────────────────
 
+type BankAccountResponse struct {
+	BankCode      string `json:"bankCode"`
+	BankName      string `json:"bankName"`
+	AccountNumber string `json:"accountNumber"`
+	AccountName   string `json:"accountName"`
+}
+
+func toBankAccountResponse(b *models.BankAccount) *BankAccountResponse {
+	if b == nil {
+		return nil
+	}
+	return &BankAccountResponse{
+		BankCode:      b.BankCode,
+		BankName:      b.BankName,
+		AccountNumber: b.AccountNumber,
+		AccountName:   b.AccountName,
+	}
+}
+
 type UserResponse struct {
 	ID              string            `json:"id"`
 	Name            string            `json:"name"`
@@ -40,6 +59,7 @@ type UserResponse struct {
 	IsEmailVerified bool              `json:"isEmailVerified"`
 	TrustScore      float64           `json:"trustScore"`
 	Badges          []models.VerificationBadge `json:"badges"`
+	BankAccount     *BankAccountResponse        `json:"bankAccount,omitempty"`
 	CreatedAt       string            `json:"createdAt"`
 }
 
@@ -63,6 +83,7 @@ func toUserResponse(u *models.User) UserResponse {
 		IsEmailVerified: u.IsEmailVerified,
 		TrustScore:      u.TrustScore,
 		Badges:          badges,
+		BankAccount:     toBankAccountResponse(u.BankAccount),
 		CreatedAt:       u.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }
