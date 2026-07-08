@@ -137,6 +137,8 @@ export const conversationsApi = {
     api.get<{ success: boolean; data: ChatMessage[]; meta: Meta }>(`/conversations/${id}/messages`, { params }),
   sendMessage: (id: string, body: string) =>
     api.post<{ success: boolean; data: ChatMessage }>(`/conversations/${id}/messages`, { body }),
+  resumeAI: (id: string) =>
+    api.post<{ success: boolean; data: ChatMessage }>(`/conversations/${id}/resume-ai`),
   markRead: (id: string) => api.post(`/conversations/${id}/read`),
   typing: (id: string) => api.post(`/conversations/${id}/typing`),
 };

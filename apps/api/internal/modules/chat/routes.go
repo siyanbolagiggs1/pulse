@@ -16,6 +16,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		convs.GET("/:id", handleGetConversation)
 		convs.GET("/:id/messages", handleGetMessages)
 		convs.POST("/:id/messages", handleSendMessage)
+		convs.POST("/:id/resume-ai", handleResumeAI)
 		convs.POST("/:id/read", handleMarkRead)
 		convs.POST("/:id/typing", handleTyping)
 	}

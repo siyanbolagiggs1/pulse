@@ -29,6 +29,7 @@ export default function ConversationThreadPage() {
   const [otherTyping, setOtherTyping] = useState(false);
   const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
   const [requestingHuman, setRequestingHuman] = useState(false);
+  const [resumingAI, setResumingAI] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSentRef = useRef(0);
@@ -114,6 +115,19 @@ export default function ConversationThreadPage() {
     }
   };
 
+  const handleResumeAI = async () => {
+    setResumingAI(true);
+    try {
+      const res = await conversationsApi.resumeAI(id);
+      setMessages((prev) => [...prev, res.data.data]);
+      setConversation((prev) => (prev ? { ...prev, needsAdminReview: false } : prev));
+    } catch (err: any) {
+      toast({ title: "Failed to switch to AI mode", description: err?.response?.data?.message, variant: "destructive" });
+    } finally {
+      setResumingAI(false);
+    }
+  };
+
   if (loading) return <Skeleton className="h-96 w-full" />;
 
   const otherName = conversation?.otherParty.name ?? "Conversation";
@@ -185,6 +199,19 @@ export default function ConversationThreadPage() {
         >
           <UserRound className="mr-2 h-4 w-4" />
           {requestingHuman ? "Requesting…" : "Chat with human support"}
+        </Button>
+      )}
+
+      {otherIsAdmin && conversation?.needsAdminReview && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mb-2 w-full"
+          onClick={handleResumeAI}
+          disabled={resumingAI}
+        >
+          <Zap className="mr-2 h-4 w-4" />
+          {resumingAI ? "Switching…" : "Chat with AI assistant (instant replies)"}
         </Button>
       )}
 

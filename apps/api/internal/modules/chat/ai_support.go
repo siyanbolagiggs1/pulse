@@ -18,6 +18,7 @@ import (
 
 const escalationMessageBody = "Thanks for reaching out — this looks like something an admin should personally look into. I've flagged it and someone from our team will get back to you soon."
 const humanRequestedMessageBody = "Of course — I've flagged this conversation so a member of our team can jump in and help you directly."
+const aiModeResumedMessageBody = "You're back in AI mode — I'll answer with quick, automated replies again. Just ask for a human anytime if you'd rather wait for our team."
 
 const (
 	kbSimilarityThreshold = 0.80
@@ -124,6 +125,44 @@ func MaybeRespondAsSupportAI(ctx context.Context, conversationID, senderID, body
 	}
 
 	ws.Global.Push(otherPartyID, ws.Envelope{Type: "chat_message", Data: msg})
+}
+
+// ResumeAISupport lets the user manually switch a support conversation back
+// to AI mode after it was escalated to a human — the inverse of
+// wantsHumanHandoff. Restricted to the caller's actual support thread (the
+// other participant must be the configured support admin), same guard
+// MaybeRespondAsSupportAI applies before ever generating a reply.
+func ResumeAISupport(ctx context.Context, conversationID, userID string) (*MessageResponse, string, error) {
+	if config.App.SupportAdminEmail == "" {
+		return nil, "", ErrSupportNotConfigured
+	}
+
+	conv, _, err := loadConversation(ctx, conversationID)
+	if err != nil {
+		return nil, "", err
+	}
+	userObjID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, "", ErrUserNotFound
+	}
+
+	var supportAdmin models.User
+	if err := database.GetCollection(models.UsersCollection).
+		FindOne(ctx, bson.M{"email": config.App.SupportAdminEmail}).Decode(&supportAdmin); err != nil {
+		return nil, "", ErrSupportNotConfigured
+	}
+
+	other, err := otherParticipant(conv, userObjID)
+	if err != nil {
+		return nil, "", err
+	}
+	if other != supportAdmin.ID {
+		return nil, "", ErrInvalidRecipient
+	}
+
+	setNeedsAdminReview(ctx, conv.ID, false)
+
+	return sendBotMessage(ctx, conv, supportAdmin.ID, aiModeResumedMessageBody)
 }
 
 func isEscalationSignal(reply string) bool {

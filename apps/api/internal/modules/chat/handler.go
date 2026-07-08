@@ -152,6 +152,22 @@ func handleMarkRead(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "Marked as read", nil)
 }
 
+// POST /api/conversations/:id/resume-ai
+func handleResumeAI(c *gin.Context) {
+	conversationID := c.Param("id")
+	userID := middleware.GetUserID(c)
+
+	msg, otherPartyID, err := ResumeAISupport(c.Request.Context(), conversationID, userID)
+	if err != nil {
+		utils.Fail(c, errStatus(err), err.Error())
+		return
+	}
+
+	go ws.Global.Push(otherPartyID, ws.Envelope{Type: "chat_message", Data: msg})
+
+	utils.OK(c, http.StatusOK, "Switched back to AI mode", msg)
+}
+
 // POST /api/conversations/:id/typing
 func handleTyping(c *gin.Context) {
 	userID := middleware.GetUserID(c)
