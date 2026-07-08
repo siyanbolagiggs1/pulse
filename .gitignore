@@ -10,6 +10,13 @@ apps/api/uploads/
 # Node
 apps/web/node_modules/
 apps/web/.next/
+apps/web/*.tsbuildinfo
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
+
+# Air / build tool scratch (tmp/main.exe, tmp/build-errors.log)
+tmp/
+*.exe
 
 # OS
 .DS_Store
