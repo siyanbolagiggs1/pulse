@@ -1,13 +1,16 @@
 package submissions
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pulse/api/internal/config"
@@ -33,6 +36,7 @@ var (
 	ErrDuplicateRepostURL = errors.New("this repost URL has already been submitted by another promoter")
 	ErrRateLimited        = errors.New("submission rate limit exceeded — maximum 3 submissions per hour")
 	ErrNotReviewable      = errors.New("submission is not in a reviewable state")
+	ErrUnsupportedFile    = errors.New("screenshot must be a JPG, PNG, or WEBP image")
 	ErrAccountSuspended   = errors.New("your account is suspended — contact support")
 )
 
@@ -431,10 +435,36 @@ func rejectSubmission(ctx context.Context, adminID, submissionID, reason string)
 
 // ── File upload ──────────────────────────────────────────────
 
+// allowedScreenshotTypes maps accepted extensions to the content type their
+// bytes must actually sniff as — a submitted "screenshot.svg" or ".html"
+// would otherwise be stored and served back statically (see router.go's
+// /uploads Static route), letting a promoter plant stored XSS that fires
+// when an admin opens it to review the submission.
+var allowedScreenshotTypes = map[string]string{
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".webp": "image/webp",
+}
+
 func saveScreenshot(file multipart.File, header *multipart.FileHeader) (string, error) {
-	ext := filepath.Ext(header.Filename)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if ext == "" {
 		ext = ".jpg"
+	}
+	wantType, ok := allowedScreenshotTypes[ext]
+	if !ok {
+		return "", ErrUnsupportedFile
+	}
+
+	sniff := make([]byte, 512)
+	n, err := io.ReadFull(file, sniff)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	sniff = sniff[:n]
+	if !strings.HasPrefix(http.DetectContentType(sniff), wantType) {
+		return "", ErrUnsupportedFile
 	}
 
 	token, err := utils.GenerateSecureToken(16)
@@ -455,7 +485,7 @@ func saveScreenshot(file multipart.File, header *multipart.FileHeader) (string, 
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, file); err != nil {
+	if _, err := io.Copy(out, io.MultiReader(bytes.NewReader(sniff), file)); err != nil {
 		return "", err
 	}
 

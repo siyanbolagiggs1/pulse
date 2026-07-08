@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/pulse/api/internal/database"
@@ -133,9 +134,13 @@ func listUsers(ctx context.Context, q UserListQuery) ([]models.User, int64, erro
 		filter["isSuspended"] = false
 	}
 	if q.Search != "" {
+		// QuoteMeta escapes regex metacharacters so the search term is
+		// matched literally — an unescaped user string here is a NoSQL
+		// regex-injection / ReDoS vector (e.g. "(a+)+$").
+		pattern := regexp.QuoteMeta(q.Search)
 		filter["$or"] = bson.A{
-			bson.M{"email": bson.M{"$regex": q.Search, "$options": "i"}},
-			bson.M{"name": bson.M{"$regex": q.Search, "$options": "i"}},
+			bson.M{"email": bson.M{"$regex": pattern, "$options": "i"}},
+			bson.M{"name": bson.M{"$regex": pattern, "$options": "i"}},
 		}
 	}
 

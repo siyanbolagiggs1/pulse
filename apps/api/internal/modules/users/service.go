@@ -232,7 +232,10 @@ func searchUsers(ctx context.Context, callerRole, query string, limit int) ([]mo
 
 	filter := bson.M{"role": targetRole, "isSuspended": false}
 	if query != "" {
-		filter["name"] = bson.M{"$regex": query, "$options": "i"}
+		// QuoteMeta escapes regex metacharacters — an unescaped user string
+		// here is a NoSQL regex-injection / ReDoS vector, and this endpoint
+		// is reachable by any authenticated business/promoter.
+		filter["name"] = bson.M{"$regex": regexp.QuoteMeta(query), "$options": "i"}
 	}
 
 	cursor, err := database.GetCollection(models.UsersCollection).Find(ctx, filter,

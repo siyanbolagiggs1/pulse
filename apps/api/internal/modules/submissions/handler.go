@@ -58,6 +58,10 @@ func handleUploadScreenshot(c *gin.Context) {
 
 	url, err := saveScreenshot(file, header)
 	if err != nil {
+		if errors.Is(err, ErrUnsupportedFile) {
+			utils.Fail(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		utils.Fail(c, http.StatusInternalServerError, "Failed to save screenshot")
 		return
 	}
