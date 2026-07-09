@@ -48,7 +48,7 @@ export default function WalletPage() {
 
   const handleTopup = async () => {
     const amount = parseFloat(topupAmount);
-    if (!amount || amount < 0.1) return toast({ title: "Minimum top-up is $0.10", variant: "destructive" });
+    if (!amount || amount < 0.1) return toast({ title: "Minimum top-up is ₦0.10", variant: "destructive" });
     setProcessing(true);
     try {
       const res = await walletApi.createTopup(amount);
@@ -67,7 +67,7 @@ export default function WalletPage() {
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
-    if (!amount || amount < 0.1) return toast({ title: "Minimum withdrawal is $0.10", variant: "destructive" });
+    if (!amount || amount < 0.1) return toast({ title: "Minimum withdrawal is ₦0.10", variant: "destructive" });
     setProcessing(true);
     try {
       await walletApi.withdraw(amount);
@@ -164,7 +164,7 @@ export default function WalletPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Top Up Wallet</DialogTitle></DialogHeader>
           <div className="space-y-2">
-            <Label>Amount (USD)</Label>
+            <Label>Amount (NGN)</Label>
             <Input type="number" min="0.1" step="0.01" placeholder="1.00" value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} />
           </div>
           <DialogFooter>
@@ -184,7 +184,7 @@ export default function WalletPage() {
             </p>
           )}
           <div className="space-y-2">
-            <Label>Amount (USD, min $0.10)</Label>
+            <Label>Amount (NGN, min ₦0.10)</Label>
             <Input type="number" min="0.1" step="0.01" max={wallet?.availableBalance} placeholder="50" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} />
           </div>
           <DialogFooter>

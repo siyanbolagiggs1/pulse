@@ -21,7 +21,7 @@ const schema = z.object({
   title: z.string().min(3).max(100),
   description: z.string().min(10).max(2000),
   targetUrl: z.string().url("Must be a valid URL"),
-  baseRepostRate: z.coerce.number().min(1, "Minimum payout is $1"),
+  baseRepostRate: z.coerce.number().min(1, "Minimum payout is ₦1"),
   minFollowers: z.coerce.number().min(0),
   minInfluenceScore: z.coerce.number().min(0).max(100),
   maxParticipants: z.coerce.number().min(1),
