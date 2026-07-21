@@ -18,18 +18,18 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
-          cache-dependency-path: apps/api/go.sum
+          cache-dependency-path: api/common/go.sum
 
       - name: Download modules
-        working-directory: apps/api
+        working-directory: api/common
         run: go mod download
 
       - name: Vet
-        working-directory: apps/api
+        working-directory: api/common
         run: go vet ./...
 
       - name: Build
-        working-directory: apps/api
+        working-directory: api/common
         run: CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /dev/null ./cmd/server
 
   # ── Next.js Web ────────────────────────────────────────────────
@@ -44,14 +44,14 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        working-directory: apps/web
+        working-directory: web
         run: npm ci
 
       - name: Build   # Next.js build runs tsc type-checking internally
-        working-directory: apps/web
+        working-directory: web
         env:
           NEXT_PUBLIC_API_URL: http://localhost:5000/api
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder

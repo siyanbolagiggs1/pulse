@@ -19,7 +19,7 @@ sudo chown -R vscode:vscode /data/db
 echo "==> Setting up environment files..."
 
 # API .env — uses localhost (no Docker service names or auth)
-cat > apps/api/.env <<'EOF'
+cat > api/common/.env <<'EOF'
 PORT=5000
 NODE_ENV=development
 MONGODB_URI=mongodb://localhost:27017/pulse
@@ -42,15 +42,15 @@ PLATFORM_COMMISSION_RATE=0.20
 EOF
 
 # Web .env.local — uses relative /api so Next.js proxy handles routing
-cat > apps/web/.env.local <<'EOF'
+cat > web/.env.local <<'EOF'
 NEXT_PUBLIC_API_URL=/api
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_placeholder
 EOF
 
 echo "==> Installing Go dependencies..."
-cd apps/api && go mod download && cd ../..
+cd api/common && go mod download && cd ../..
 
 echo "==> Installing Node dependencies..."
-cd apps/web && npm install && cd ../..
+cd web && npm install && cd ..
 
 echo "==> Setup complete. Use the VS Code tasks (Ctrl+Shift+P → Run Task) to start the app."

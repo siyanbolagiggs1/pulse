@@ -6,10 +6,10 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 
-COPY apps/api/go.mod apps/api/go.sum ./
+COPY api/common/go.mod api/common/go.sum ./
 RUN go mod download
 
-COPY apps/api/ .
+COPY api/common/ .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /pulse-api ./cmd/server
 
 # ── Run stage ────────────────────────────────────────────────

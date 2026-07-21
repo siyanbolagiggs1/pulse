@@ -39,14 +39,14 @@ services:
   # ── API (Go/Gin) ─────────────────────────────────────────────
   api:
     build:
-      context: ./apps/api
+      context: ./api/common
       dockerfile: Dockerfile
     container_name: pulse_api
     restart: unless-stopped
     ports:
       - "5000:5000"
     env_file:
-      - ./apps/api/.env
+      - ./api/common/.env
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -63,14 +63,14 @@ services:
   # ── Web (Next.js) ────────────────────────────────────────────
   web:
     build:
-      context: ./apps/web
+      context: ./web
       dockerfile: Dockerfile
     container_name: pulse_web
     restart: unless-stopped
     ports:
       - "3000:3000"
     env_file:
-      - ./apps/web/.env.local
+      - ./web/.env.local
     depends_on:
       api:
         condition: service_healthy

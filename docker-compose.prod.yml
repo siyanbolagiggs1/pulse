@@ -6,8 +6,8 @@ version: "3.9"
 #
 # Prerequisites:
 #   1. DNS A record pointing your domain to this server's IP
-#   2. apps/api/.env.prod with real secrets (NODE_ENV=production)
-#   3. apps/web/.env.prod with NEXT_PUBLIC_API_URL=https://pulse.app/api
+#   2. api/common/.env.prod with real secrets (NODE_ENV=production)
+#   3. web/.env.prod with NEXT_PUBLIC_API_URL=https://pulse.app/api
 #   4. Build-arg values set below match your domain
 
 services:
@@ -49,12 +49,12 @@ services:
   # ── API (Go/Gin) ─────────────────────────────────────────────
   api:
     build:
-      context: ./apps/api
+      context: ./api/common
       dockerfile: Dockerfile
     container_name: pulse_api
     restart: unless-stopped
     env_file:
-      - ./apps/api/.env.prod
+      - ./api/common/.env.prod
     volumes:
       - uploads:/app/uploads
     networks:
@@ -68,7 +68,7 @@ services:
   # ── Web (Next.js) ────────────────────────────────────────────
   web:
     build:
-      context: ./apps/web
+      context: ./web
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://pulse.app/api

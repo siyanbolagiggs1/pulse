@@ -86,7 +86,7 @@ Do these steps once after cloning the repo.
 ### 1. Install Go dependencies
 
 ```bash
-cd apps/api
+cd api/common
 go mod tidy
 ```
 
@@ -95,7 +95,7 @@ This generates `go.sum`. You must do this before building the API container.
 ### 2. Install frontend dependencies
 
 ```bash
-cd apps/web
+cd web
 npm install
 ```
 
@@ -103,15 +103,15 @@ npm install
 
 ```bash
 # API
-cp apps/api/.env.example apps/api/.env
+cp api/common/.env.example api/common/.env
 
 # Frontend
-cp apps/web/.env.example apps/web/.env.local
+cp web/.env.example web/.env.local
 ```
 
 ### 4. Fill in your secrets
 
-Open `apps/api/.env` and set real values for:
+Open `api/common/.env` and set real values for:
 
 | Variable | Where to get it |
 |---|---|
@@ -123,7 +123,7 @@ Open `apps/api/.env` and set real values for:
 | `SMTP_USER` | Your Gmail address |
 | `SMTP_PASS` | Gmail → App Passwords (not your main password) |
 
-Open `apps/web/.env.local` and set:
+Open `web/.env.local` and set:
 
 | Variable | Where to get it |
 |---|---|
@@ -176,11 +176,11 @@ Then in separate terminals:
 
 ```bash
 # Terminal 1 — API
-cd apps/api
+cd api/common
 go run ./cmd/server
 
 # Terminal 2 — Frontend
-cd apps/web
+cd web
 npm run dev
 ```
 
@@ -197,7 +197,7 @@ Two options: **managed** (Railway + Vercel, easiest, free) or **self-hosted** (V
 #### API → Railway
 
 1. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
-2. Select your repo and set **Root Directory** to `apps/api`
+2. Select your repo and set **Root Directory** to `api/common`
 3. Railway auto-detects the Dockerfile and builds it
 4. Under **Variables**, add all required secrets (see Environment Variables Reference below)
 5. Note the public URL Railway assigns — e.g. `https://pulse-api-production.up.railway.app`
@@ -208,7 +208,7 @@ Two options: **managed** (Railway + Vercel, easiest, free) or **self-hosted** (V
 
 ```bash
 # Install Vercel CLI: npm i -g vercel
-cd apps/web
+cd web
 
 # First time only — links to your Vercel account/org
 vercel link
@@ -220,7 +220,7 @@ vercel link
 vercel --prod
 ```
 
-Or connect the GitHub repo in the Vercel dashboard (set "Root Directory" to `apps/web`) and every push to `main` deploys automatically.
+Or connect the GitHub repo in the Vercel dashboard (set "Root Directory" to `web`) and every push to `main` deploys automatically.
 
 #### Automated CI/CD
 
@@ -230,7 +230,7 @@ Add these secrets to GitHub → Settings → Secrets and variables → Actions:
 |---|---|
 | `RAILWAY_TOKEN` | Railway dashboard → Account Settings → Tokens |
 | `VERCEL_TOKEN` | Vercel dashboard → Account → Tokens |
-| `VERCEL_ORG_ID` | `cat apps/web/.vercel/project.json` after `vercel link` |
+| `VERCEL_ORG_ID` | `cat web/.vercel/project.json` after `vercel link` |
 | `VERCEL_PROJECT_ID` | same file |
 
 After that, every push to `main` triggers `.github/workflows/deploy.yml` which deploys both services in sequence.
@@ -252,16 +252,16 @@ git clone https://github.com/yourorg/pulse.git
 cd pulse
 
 # Create production env files
-cp apps/api/.env.example apps/api/.env.prod
-cp apps/web/.env.example apps/web/.env.prod
+cp api/common/.env.example api/common/.env.prod
+cp web/.env.example web/.env.prod
 
-# Edit apps/api/.env.prod — fill all real values, set NODE_ENV=production
-# Edit apps/web/.env.prod — set NEXT_PUBLIC_API_URL=https://your-domain.com/api
+# Edit api/common/.env.prod — fill all real values, set NODE_ENV=production
+# Edit web/.env.prod — set NEXT_PUBLIC_API_URL=https://your-domain.com/api
 
 # Generate a Redis password and add to .env.prod as REDIS_PASSWORD=...
 
 # Start everything (Caddy handles HTTPS automatically)
-docker-compose -f docker-compose.prod.yml --env-file apps/api/.env.prod up -d --build
+docker-compose -f docker-compose.prod.yml --env-file api/common/.env.prod up -d --build
 ```
 
 Caddy provisions a Let's Encrypt certificate automatically on first startup. The stack is:
@@ -295,41 +295,41 @@ ngrok http 5000
 
 ```
 pulse/
-├── apps/
-│   ├── api/                  Go/Gin REST API
-│   │   ├── cmd/server/       Entry point (main.go)
-│   │   ├── internal/
-│   │   │   ├── config/       Env config loader
-│   │   │   ├── database/     MongoDB + Redis connections
-│   │   │   ├── middleware/   Auth, roles, rate limiting, upload
-│   │   │   ├── models/       MongoDB document structs
-│   │   │   ├── modules/      Feature modules (auth, campaigns, etc.)
-│   │   │   ├── router/       Gin router setup
-│   │   │   ├── services/     Influence scoring, fraud, email, paystack
-│   │   │   └── utils/        Response helpers
-│   │   ├── Dockerfile
-│   │   └── .env.example
-│   │
-│   └── web/                  Next.js 14 frontend
-│       ├── src/
-│       │   ├── app/
-│       │   │   ├── (auth)/           Login, register, forgot/reset password
-│       │   │   ├── verify-email/     Email verification handler
-│       │   │   └── dashboard/
-│       │   │       ├── campaigns/    Business campaign CRUD
-│       │   │       ├── marketplace/  Promoter campaign browse + apply
-│       │   │       ├── submissions/  Submission list (role-scoped)
-│       │   │       ├── wallet/       Balance, top-up, withdraw
-│       │   │       └── admin/        Stats, users, submissions, fraud, withdrawals
-│       │   ├── components/
-│       │   │   ├── layout/           Sidebar, header (with SSE notifications)
-│       │   │   └── ui/               shadcn/ui components (Radix-based)
-│       │   ├── hooks/                useSSE (fetch + ReadableStream SSE)
-│       │   ├── lib/                  Axios client, API functions, utilities
-│       │   ├── store/                Zustand auth store
-│       │   └── types/                Shared TypeScript types
+├── api/
+│   └── common/                Go/Gin REST API
+│       ├── cmd/server/        Entry point (main.go)
+│       ├── internal/
+│       │   ├── config/        Env config loader
+│       │   ├── database/      MongoDB + Redis connections
+│       │   ├── middleware/    Auth, roles, rate limiting, upload
+│       │   ├── models/        MongoDB document structs
+│       │   ├── modules/       Feature modules (auth, campaigns, etc.)
+│       │   ├── router/        Gin router setup
+│       │   ├── services/      Influence scoring, fraud, email, paystack
+│       │   └── utils/         Response helpers
 │       ├── Dockerfile
 │       └── .env.example
+│
+├── web/                        Next.js frontend
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── (auth)/           Login, register, forgot/reset password
+│   │   │   ├── verify-email/     Email verification handler
+│   │   │   └── dashboard/
+│   │   │       ├── campaigns/    Advert CRUD
+│   │   │       ├── marketplace/  Earn Hub — browse + apply to adverts
+│   │   │       ├── submissions/  My/incoming submissions
+│   │   │       ├── wallet/       Balance, top-up, withdraw
+│   │   │       └── admin/        Stats, users, submissions, fraud, withdrawals
+│   │   ├── components/
+│   │   │   ├── layout/           Sidebar, header (with SSE notifications)
+│   │   │   └── ui/               shadcn/ui components (Radix-based)
+│   │   ├── hooks/                useSSE (fetch + ReadableStream SSE)
+│   │   ├── lib/                  Axios client, API functions, utilities
+│   │   ├── store/                Zustand auth store
+│   │   └── types/                Shared TypeScript types
+│   ├── Dockerfile
+│   └── .env.example
 │
 ├── docker-compose.yml
 ├── README.md
@@ -340,7 +340,7 @@ pulse/
 
 ## Environment Variables Reference
 
-### API (`apps/api/.env`)
+### API (`api/common/.env`)
 
 | Variable | Default | Description |
 |---|---|---|
@@ -367,7 +367,7 @@ pulse/
 | `MONGO_ROOT_USER` | `admin` | MongoDB root user (Docker only) |
 | `MONGO_ROOT_PASS` | `secret` | MongoDB root password (Docker only) |
 
-### Frontend (`apps/web/.env.local`)
+### Frontend (`web/.env.local`)
 
 | Variable | Description |
 |---|---|
@@ -481,7 +481,7 @@ Notification types: `submission_approved`, `submission_rejected`, `withdrawal_pr
 Make sure Go 1.22+ is installed: `go version`
 
 **Docker build fails on `go.sum not found`**
-Run `go mod tidy` inside `apps/api/` first.
+Run `go mod tidy` inside `api/common/` first.
 
 **Port already in use**
 Change the host port in `docker-compose.yml` (left side of `ports:` mapping).
@@ -499,7 +499,7 @@ Admin-approving a withdrawal calls Paystack's Transfers API directly, with no hu
 For Gmail, you must use an [App Password](https://myaccount.google.com/apppasswords), not your main Gmail password. Enable 2FA first, then generate the app password and set it as `SMTP_PASS`.
 
 **CORS errors in production**
-Make sure `CLIENT_URL` in `apps/api/.env.prod` exactly matches the frontend origin (including scheme, no trailing slash): `https://your-app.vercel.app`. The API uses this value as the only allowed CORS origin.
+Make sure `CLIENT_URL` in `api/common/.env.prod` exactly matches the frontend origin (including scheme, no trailing slash): `https://your-app.vercel.app`. The API uses this value as the only allowed CORS origin.
 
 **"Email already registered" on fresh database**
 MongoDB unique index on `users.email` is enforced. Drop the collection or use a different email.
@@ -545,7 +545,7 @@ Everything below is free until you hit scale.
 ### Step 3 — Deploy the API to Railway
 
 1. Go to [railway.app](https://railway.app) → **New Project → Deploy from GitHub repo**
-2. Select your repo, set **Root Directory** to `apps/api`
+2. Select your repo, set **Root Directory** to `api/common`
 3. Railway detects the Dockerfile and builds automatically
 4. Under **Variables**, add all secrets:
 
@@ -577,7 +577,7 @@ Everything below is free until you hit scale.
 
 ```bash
 npm install -g vercel
-cd apps/web
+cd web
 vercel
 ```
 
@@ -621,7 +621,7 @@ Add these secrets to your GitHub repo → **Settings → Secrets → Actions**:
 |---|---|
 | `RAILWAY_TOKEN` | Railway dashboard → Account Settings → Tokens |
 | `VERCEL_TOKEN` | Vercel dashboard → Account Settings → Tokens |
-| `VERCEL_ORG_ID` | Run `cat apps/web/.vercel/project.json` after `vercel link` |
+| `VERCEL_ORG_ID` | Run `cat web/.vercel/project.json` after `vercel link` |
 | `VERCEL_PROJECT_ID` | Same file as above |
 
 ---
