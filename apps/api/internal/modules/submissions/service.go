@@ -38,6 +38,7 @@ var (
 	ErrNotReviewable      = errors.New("submission is not in a reviewable state")
 	ErrUnsupportedFile    = errors.New("screenshot must be a JPG, PNG, or WEBP image")
 	ErrAccountSuspended   = errors.New("your account is suspended — contact support")
+	ErrSelfSubmission     = errors.New("you cannot submit to your own campaign")
 )
 
 // ── Submission creation ──────────────────────────────────────
@@ -75,6 +76,9 @@ func createSubmission(ctx context.Context, promoterID string, req CreateSubmissi
 	if err := database.GetCollection(models.CampaignsCollection).
 		FindOne(ctx, bson.M{"_id": campObjID}).Decode(&campaign); err != nil {
 		return nil, ErrCampaignNotActive
+	}
+	if campaign.BusinessID == promoterObjID {
+		return nil, ErrSelfSubmission
 	}
 	if campaign.Status != models.CampaignStatusActive {
 		return nil, ErrCampaignNotActive
@@ -164,7 +168,13 @@ func createSubmission(ctx context.Context, promoterID string, req CreateSubmissi
 
 // ── Listing ──────────────────────────────────────────────────
 
-func getSubmissions(ctx context.Context, userID, role string, q SubmissionListQuery) ([]models.CampaignSubmission, int64, error) {
+// getSubmissions scopes results by the caller's relationship to each
+// submission, not a fixed role: view="mine" (submissions I made as
+// reposter) or view="incoming" (submissions to campaigns I own). Both
+// relationships can apply to the same user now that there's no
+// business/promoter split, so the caller picks which one they're viewing.
+// Admins are unscoped and ignore view.
+func getSubmissions(ctx context.Context, userID, role, view string, q SubmissionListQuery) ([]models.CampaignSubmission, int64, error) {
 	if q.Page < 1 {
 		q.Page = 1
 	}
@@ -174,16 +184,16 @@ func getSubmissions(ctx context.Context, userID, role string, q SubmissionListQu
 
 	filter := bson.M{}
 
-	// Scope by role: promoters see only their own; businesses see only theirs.
-	switch role {
-	case string(models.RolePromoter):
-		objID, _ := bson.ObjectIDFromHex(userID)
-		filter["promoterId"] = objID
-	case string(models.RoleBusiness):
+	switch {
+	case role == string(models.RoleAdmin):
+		// unscoped
+	case view == "incoming":
 		objID, _ := bson.ObjectIDFromHex(userID)
 		filter["businessId"] = objID
+	default: // "mine"
+		objID, _ := bson.ObjectIDFromHex(userID)
+		filter["promoterId"] = objID
 	}
-	// admin sees all
 
 	if q.CampaignID != "" {
 		if id, err := bson.ObjectIDFromHex(q.CampaignID); err == nil {
@@ -233,13 +243,14 @@ func getSubmission(ctx context.Context, id, userID, role string) (*models.Campai
 
 	filter := bson.M{"_id": objID}
 
-	// Scope access.
-	userObjID, _ := bson.ObjectIDFromHex(userID)
-	switch role {
-	case string(models.RolePromoter):
-		filter["promoterId"] = userObjID
-	case string(models.RoleBusiness):
-		filter["businessId"] = userObjID
+	// Scope access: a non-admin caller may view a submission if they're
+	// either the reposter or the campaign owner on it.
+	if role != string(models.RoleAdmin) {
+		userObjID, _ := bson.ObjectIDFromHex(userID)
+		filter["$or"] = []bson.M{
+			{"promoterId": userObjID},
+			{"businessId": userObjID},
+		}
 	}
 
 	var s models.CampaignSubmission

@@ -18,7 +18,7 @@ import (
 
 var (
 	ErrUserNotFound         = errors.New("user not found")
-	ErrInvalidRecipient     = errors.New("you cannot start a conversation with a user of that role")
+	ErrInvalidRecipient     = errors.New("you cannot start a conversation with that user")
 	ErrUserSuspended        = errors.New("cannot start a conversation with a suspended user")
 	ErrConversationNotFound = errors.New("conversation not found")
 	ErrNotParticipant       = errors.New("you are not a participant in this conversation")
@@ -37,6 +37,9 @@ func startOrGetConversation(ctx context.Context, callerID, callerRole, recipient
 	recipientObjID, err := bson.ObjectIDFromHex(recipientID)
 	if err != nil {
 		return nil, ErrUserNotFound
+	}
+	if callerObjID == recipientObjID {
+		return nil, ErrInvalidRecipient
 	}
 
 	var recipient models.User
@@ -148,20 +151,11 @@ func getOrCreateConversation(ctx context.Context, userID1, userID2 bson.ObjectID
 	return &conv, nil
 }
 
-// allowedPairs enumerates every valid (role, role) combination for starting a
-// conversation, keyed order-independently. business<->business, promoter<->
-// promoter, and admin<->admin are all intentionally absent (rejected).
-var allowedPairs = map[[2]string]bool{
-	{string(models.RoleBusiness), string(models.RolePromoter)}: true,
-	{string(models.RolePromoter), string(models.RoleBusiness)}: true,
-	{string(models.RoleAdmin), string(models.RoleBusiness)}:    true,
-	{string(models.RoleBusiness), string(models.RoleAdmin)}:    true,
-	{string(models.RoleAdmin), string(models.RolePromoter)}:    true,
-	{string(models.RolePromoter), string(models.RoleAdmin)}:    true,
-}
-
+// isValidPair allows any two distinct non-admin users to chat, plus
+// admin<->non-admin. admin<->admin is rejected (self-chat is guarded
+// separately by an ID check at each call site).
 func isValidPair(callerRole, recipientRole string) bool {
-	return allowedPairs[[2]string{callerRole, recipientRole}]
+	return !(callerRole == string(models.RoleAdmin) && recipientRole == string(models.RoleAdmin))
 }
 
 // ── List conversations ────────────────────────────────────────
@@ -633,13 +627,13 @@ func SendWelcomeMessage(ctx context.Context, recipientUserID string) (sent bool,
 	return true, nil
 }
 
-// broadcastWelcomeMessages sends the welcome message to every business/
-// promoter user who doesn't already have one (via SendWelcomeMessage's own
-// idempotency check). Safe to call repeatedly — e.g. re-running to catch
-// stragglers doesn't create duplicate welcomes.
+// broadcastWelcomeMessages sends the welcome message to every non-admin user
+// who doesn't already have one (via SendWelcomeMessage's own idempotency
+// check). Safe to call repeatedly — e.g. re-running to catch stragglers
+// doesn't create duplicate welcomes.
 func broadcastWelcomeMessages(ctx context.Context) (sent int, skipped int, err error) {
 	cursor, err := database.GetCollection(models.UsersCollection).Find(ctx, bson.M{
-		"role": bson.M{"$in": bson.A{string(models.RoleBusiness), string(models.RolePromoter)}},
+		"role": bson.M{"$ne": string(models.RoleAdmin)},
 	})
 	if err != nil {
 		return 0, 0, err

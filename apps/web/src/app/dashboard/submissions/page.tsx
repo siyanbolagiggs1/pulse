@@ -2,12 +2,12 @@
 import { useEffect, useState } from "react";
 import { submissionsApi } from "@/lib/api";
 import type { CampaignSubmission } from "@/types";
-import { useAuthStore } from "@/store/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pagination } from "@/components/ui/pagination";
 import { formatCurrency, apiFileUrl } from "@/lib/utils";
 import { format } from "date-fns";
@@ -19,8 +19,10 @@ const statusVariant: Record<string, "success" | "warning" | "destructive" | "sec
 
 const PAGE_SIZE = 20;
 
+type View = "mine" | "incoming";
+
 export default function SubmissionsPage() {
-  const user = useAuthStore((s) => s.user);
+  const [view, setView] = useState<View>("mine");
   const [submissions, setSubmissions] = useState<CampaignSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("all");
@@ -29,10 +31,10 @@ export default function SubmissionsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [status]);
+  }, [status, view]);
 
   useEffect(() => {
-    const params: Record<string, string | number> = { page, limit: PAGE_SIZE };
+    const params: Record<string, string | number> = { page, limit: PAGE_SIZE, view };
     if (status !== "all") params.status = status;
     setLoading(true);
     submissionsApi.list(params)
@@ -42,7 +44,7 @@ export default function SubmissionsPage() {
       })
       .catch(() => toast({ title: "Failed to load submissions", variant: "destructive" }))
       .finally(() => setLoading(false));
-  }, [status, page]);
+  }, [status, page, view]);
 
   return (
     <div className="space-y-6">
@@ -50,7 +52,7 @@ export default function SubmissionsPage() {
         <div>
           <h2 className="text-2xl font-bold">Submissions</h2>
           <p className="text-muted-foreground">
-            {user?.role === "promoter" ? "Track your submission status" : "Review incoming submissions"}
+            {view === "mine" ? "Track your submission status" : "Review submissions to your adverts"}
           </p>
         </div>
         <Select value={status} onValueChange={setStatus}>
@@ -63,6 +65,13 @@ export default function SubmissionsPage() {
           </SelectContent>
         </Select>
       </div>
+
+      <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+        <TabsList>
+          <TabsTrigger value="mine">My Submissions</TabsTrigger>
+          <TabsTrigger value="incoming">Incoming</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <Card>
         <CardContent className="p-0">
@@ -81,7 +90,7 @@ export default function SubmissionsPage() {
                     <TableHead>Submitted</TableHead>
                     <TableHead>Proof</TableHead>
                     <TableHead>Screenshot</TableHead>
-                    {user?.role === "promoter" && <TableHead>Release Date</TableHead>}
+                    {view === "mine" && <TableHead>Release Date</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -99,7 +108,7 @@ export default function SubmissionsPage() {
                           <a href={apiFileUrl(s.screenshotUrl)} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">Screenshot</a>
                         )}
                       </TableCell>
-                      {user?.role === "promoter" && (
+                      {view === "mine" && (
                         <TableCell className="text-muted-foreground text-sm">
                           {s.payoutReleasedAt ? format(new Date(s.payoutReleasedAt), "MMM d") : "—"}
                         </TableCell>

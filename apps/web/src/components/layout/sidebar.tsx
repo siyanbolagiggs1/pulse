@@ -13,17 +13,11 @@ import { useRealtime } from "@/providers/realtime";
 
 type NavItem = { label: string; href: string; icon: React.ElementType };
 
-const businessNav: NavItem[] = [
+const userNav: NavItem[] = [
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Adverts", href: "/dashboard/campaigns", icon: Megaphone },
-  { label: "Submissions", href: "/dashboard/submissions", icon: FileText },
-  { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
-  { label: "Wallet", href: "/dashboard/wallet", icon: Wallet },
-  { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
-];
-
-const promoterNav: NavItem[] = [
   { label: "Marketplace", href: "/dashboard/marketplace", icon: Store },
-  { label: "My Submissions", href: "/dashboard/submissions", icon: FileText },
+  { label: "Submissions", href: "/dashboard/submissions", icon: FileText },
   { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
   { label: "Wallet", href: "/dashboard/wallet", icon: Wallet },
   { label: "Profile", href: "/dashboard/profile", icon: UserCircle },
@@ -48,7 +42,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const { unreadMessages } = useRealtime();
 
-  const nav = user?.role === "admin" ? adminNav : user?.role === "business" ? businessNav : promoterNav;
+  const nav = user?.role === "admin" ? adminNav : userNav;
 
   const handleLogout = async () => {
     try { await authApi.logout(); } catch {}
@@ -66,14 +60,19 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {nav.map(({ label, href, icon: Icon }) => (
+        {nav.map(({ label, href, icon: Icon }) => {
+          // "/dashboard" itself must match exactly — every nested route also
+          // starts with "/dashboard", which would otherwise keep Overview
+          // highlighted on every single page.
+          const active = href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+          return (
           <Link
             key={href}
             href={href}
             onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-              pathname.startsWith(href)
+              active
                 ? "bg-primary/10 text-primary font-medium"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
@@ -86,7 +85,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
               </span>
             )}
           </Link>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="border-t border-border p-3">

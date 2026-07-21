@@ -32,13 +32,11 @@ export default function WalletPage() {
   const [processing, setProcessing] = useState(false);
 
   const load = () => {
-    const p: Promise<any>[] = [walletApi.get()];
-    if (user?.role === "promoter") p.push(walletApi.getWithdrawals());
-    Promise.all(p)
+    Promise.all([walletApi.get(), walletApi.getWithdrawals()])
       .then(([wr, wdr]) => {
         setWallet(wr.data.data);
         setTxs(wr.data.data.recentTransactions ?? []);
-        if (wdr) setWithdrawals(wdr.data.data ?? []);
+        setWithdrawals(wdr.data.data ?? []);
       })
       .catch(() => toast({ title: "Error loading wallet", variant: "destructive" }))
       .finally(() => setLoading(false));
@@ -85,7 +83,7 @@ export default function WalletPage() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Wallet</h2>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">Available</p>
           <p className="text-3xl font-bold text-green-400">{formatCurrency(wallet?.availableBalance ?? 0)}</p>
@@ -95,15 +93,17 @@ export default function WalletPage() {
           <p className="text-3xl font-bold text-yellow-400">{formatCurrency(wallet?.pendingBalance ?? 0)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">{user?.role === "promoter" ? "Total Earned" : "Total Spent"}</p>
-          <p className="text-3xl font-bold">{formatCurrency(user?.role === "promoter" ? (wallet?.totalEarned ?? 0) : (wallet?.totalSpent ?? 0))}</p>
+          <p className="text-sm text-muted-foreground">Total Earned</p>
+          <p className="text-3xl font-bold">{formatCurrency(wallet?.totalEarned ?? 0)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">Total Spent</p>
+          <p className="text-3xl font-bold">{formatCurrency(wallet?.totalSpent ?? 0)}</p>
         </CardContent></Card>
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {user?.role === "business" && (
-          <Button onClick={() => setTopupOpen(true)}><ArrowUpFromLine className="mr-2 h-4 w-4" />Top Up</Button>
-        )}
+        <Button onClick={() => setTopupOpen(true)}><ArrowUpFromLine className="mr-2 h-4 w-4" />Top Up</Button>
         <Button
           onClick={() => {
             if (!user?.bankAccount) {
@@ -122,7 +122,7 @@ export default function WalletPage() {
         </Button>
       </div>
 
-      {user?.role === "promoter" && withdrawals.length > 0 && (
+      {withdrawals.length > 0 && (
         <Card>
           <CardHeader><CardTitle>Withdrawals</CardTitle></CardHeader>
           <CardContent className="space-y-2">

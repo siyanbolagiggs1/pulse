@@ -5,10 +5,9 @@ import "github.com/pulse/api/internal/models"
 // ── Requests ─────────────────────────────────────────────────
 
 type RegisterRequest struct {
-	Name     string      `json:"name"     binding:"required,min=2,max=80"`
-	Email    string      `json:"email"    binding:"required,email"`
-	Password string      `json:"password" binding:"required,min=8,max=72"`
-	Role     models.Role `json:"role"     binding:"required,oneof=business promoter"`
+	Name     string `json:"name"     binding:"required,min=2,max=80"`
+	Email    string `json:"email"    binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8,max=72"`
 }
 
 type LoginRequest struct {
@@ -18,7 +17,6 @@ type LoginRequest struct {
 
 type GoogleSignInRequest struct {
 	Credential string `json:"credential" binding:"required"`
-	Role       string `json:"role"       binding:"omitempty,oneof=business promoter"`
 }
 
 type ForgotPasswordRequest struct {

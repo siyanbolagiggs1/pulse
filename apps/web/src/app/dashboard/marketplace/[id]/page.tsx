@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { campaignsApi, submissionsApi, usersApi, conversationsApi } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import type { Campaign, SocialAccount } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { ArrowLeft, Upload, MessageCircle } from "lucide-react";
+import { ArrowLeft, Upload, MessageCircle, Megaphone } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
 export default function CampaignApplyPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +84,8 @@ export default function CampaignApplyPage() {
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!campaign) return <p>Advert not found.</p>;
 
+  const isOwner = user?.id === campaign.businessId;
+
   // Only admin-verified accounts are selectable. Raw follower count and
   // influence score aren't exposed to users, so we can't pre-filter on
   // campaign minimums here anymore — the server enforces the real
@@ -97,10 +101,12 @@ export default function CampaignApplyPage() {
           <h2 className="text-2xl font-bold">{campaign.title}</h2>
           <p className="text-muted-foreground capitalize">{campaign.platform}</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5" disabled={messaging} onClick={messageOwner}>
-          <MessageCircle className="h-4 w-4" />
-          Message Owner
-        </Button>
+        {!isOwner && (
+          <Button variant="outline" size="sm" className="gap-1.5" disabled={messaging} onClick={messageOwner}>
+            <MessageCircle className="h-4 w-4" />
+            Message Owner
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -123,7 +129,18 @@ export default function CampaignApplyPage() {
       <Card>
         <CardHeader><CardTitle>Submit Your Repost</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {eligible.length === 0 ? (
+          {isOwner ? (
+            <div className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm text-muted-foreground">
+              <Megaphone className="h-5 w-5 shrink-0" />
+              <p>
+                This is your own advert — you can't submit a repost to it.{" "}
+                <Link href={`/dashboard/campaigns/${campaign.id}`} className="text-primary hover:underline">
+                  Manage it from My Adverts
+                </Link>
+                .
+              </p>
+            </div>
+          ) : eligible.length === 0 ? (
             <p className="text-sm text-destructive">None of your {campaign.platform} accounts meet the eligibility requirements.</p>
           ) : (
             <>

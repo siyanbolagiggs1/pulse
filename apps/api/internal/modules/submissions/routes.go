@@ -7,14 +7,13 @@ import (
 
 func RegisterRoutes(rg *gin.RouterGroup) {
 	auth := middleware.RequireAuth()
-	promoterOnly := middleware.RequireRole("promoter")
 	adminOnly := middleware.RequireRole("admin")
 
 	s := rg.Group("/submissions", auth)
 	{
 		// Static segments before /:id to avoid Gin route conflicts.
-		s.POST("/upload", promoterOnly, handleUploadScreenshot)
-		s.POST("", promoterOnly, handleCreateSubmission)
+		s.POST("/upload", handleUploadScreenshot)
+		s.POST("", handleCreateSubmission)
 		s.GET("", handleGetSubmissions)
 		s.GET("/:id", handleGetSubmission)
 		s.POST("/:id/approve", adminOnly, handleApproveSubmission)

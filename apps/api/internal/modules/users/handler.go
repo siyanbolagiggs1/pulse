@@ -63,7 +63,7 @@ func handleConnectSocialAccount(c *gin.Context) {
 
 // GET /api/users/search
 func handleSearchUsers(c *gin.Context) {
-	users, err := searchUsers(c.Request.Context(), middleware.GetUserRole(c), c.Query("q"), 20)
+	users, err := searchUsers(c.Request.Context(), middleware.GetUserID(c), middleware.GetUserRole(c), c.Query("q"), 20)
 	if err != nil {
 		utils.Fail(c, http.StatusInternalServerError, "Search failed")
 		return

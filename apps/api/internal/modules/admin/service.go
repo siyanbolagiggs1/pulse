@@ -46,8 +46,7 @@ func getPlatformStats(ctx context.Context) (*PlatformStats, error) {
 	walletsCol := database.GetCollection(models.WalletsCollection)
 
 	totalUsers, _ := usersCol.CountDocuments(ctx, bson.M{})
-	totalBiz, _ := usersCol.CountDocuments(ctx, bson.M{"role": models.RoleBusiness})
-	totalPromoters, _ := usersCol.CountDocuments(ctx, bson.M{"role": models.RolePromoter})
+	totalRegular, _ := usersCol.CountDocuments(ctx, bson.M{"role": models.RoleUser})
 	suspended, _ := usersCol.CountDocuments(ctx, bson.M{"isSuspended": true})
 
 	totalCampaigns, _ := campaignsCol.CountDocuments(ctx, bson.M{})
@@ -88,9 +87,9 @@ func getPlatformStats(ctx context.Context) (*PlatformStats, error) {
 		totalWithdrawn = completedWResult[0].Total
 	}
 
-	// Sum promoter pending balances.
+	// Sum pending balances across all regular (non-admin) wallets.
 	promoterPendingPipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"role": models.RolePromoter}}},
+		{{Key: "$match", Value: bson.M{"role": models.RoleUser}}},
 		{{Key: "$group", Value: bson.M{"_id": nil, "total": bson.M{"$sum": "$pendingBalance"}}}},
 	}
 	var promoterPendingResult []struct{ Total float64 `bson:"total"` }
@@ -104,10 +103,9 @@ func getPlatformStats(ctx context.Context) (*PlatformStats, error) {
 
 	return &PlatformStats{
 		Users: UserStats{
-			Total:      totalUsers,
-			Businesses: totalBiz,
-			Promoters:  totalPromoters,
-			Suspended:  suspended,
+			Total:     totalUsers,
+			Users:     totalRegular,
+			Suspended: suspended,
 		},
 		Campaigns: CampaignStats{
 			Total:     totalCampaigns,

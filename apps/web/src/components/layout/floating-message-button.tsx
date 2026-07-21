@@ -5,15 +5,16 @@ import { MessageCircle } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { useRealtime } from "@/providers/realtime";
 
-// Persistent shortcut to Messages, visible on every dashboard screen for the
-// two roles that actually participate in chat. Hidden on the Messages pages
-// themselves since a button to get there is redundant once you're there.
+// Persistent shortcut to Messages, visible on every dashboard screen for
+// regular (non-admin) users, who participate in chat. Hidden on the
+// Messages pages themselves since a button to get there is redundant once
+// you're there.
 export function FloatingMessageButton() {
   const user = useAuthStore((s) => s.user);
   const pathname = usePathname();
   const { unreadMessages } = useRealtime();
 
-  if (user?.role !== "business" && user?.role !== "promoter") return null;
+  if (user?.role === "admin") return null;
   if (pathname.startsWith("/dashboard/messages")) return null;
 
   return (

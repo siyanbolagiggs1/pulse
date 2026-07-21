@@ -32,6 +32,8 @@ func handleCreateSubmission(c *gin.Context) {
 			utils.Fail(c, http.StatusBadRequest, err.Error())
 		case errors.Is(err, ErrAlreadySubmitted), errors.Is(err, ErrDuplicateRepostURL):
 			utils.Fail(c, http.StatusConflict, err.Error())
+		case errors.Is(err, ErrSelfSubmission):
+			utils.Fail(c, http.StatusBadRequest, err.Error())
 		default:
 			utils.Fail(c, http.StatusInternalServerError, "Failed to create submission")
 		}
@@ -80,7 +82,7 @@ func handleGetSubmissions(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	role := middleware.GetUserRole(c)
 
-	submissions, total, err := getSubmissions(c.Request.Context(), userID, role, q)
+	submissions, total, err := getSubmissions(c.Request.Context(), userID, role, q.View, q)
 	if err != nil {
 		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch submissions")
 		return

@@ -70,13 +70,13 @@ export default function ProfilePage() {
     `${profileUrlPrefixes[p]}${u.replace(/^@/, "")}`;
 
   useEffect(() => {
-    if (user?.role !== "promoter") return;
+    if (!user || user.role === "admin") return;
     setLoadingAccounts(true);
     usersApi.getMe()
       .then((r) => setAccounts(r.data.data.socialAccounts ?? []))
       .catch(() => toast({ title: "Failed to load accounts", variant: "destructive" }))
       .finally(() => setLoadingAccounts(false));
-  }, [user?.role]);
+  }, [user?.id]);
 
   const handleSaveProfile = async () => {
     if (!name.trim()) return;
@@ -226,7 +226,7 @@ export default function ProfilePage() {
               <p className="text-muted-foreground">Email verified</p>
               <p>{user?.isEmailVerified ? "Yes" : "No"}</p>
             </div>
-            {user?.role === "promoter" && (
+            {user && user.role !== "admin" && (
               <div>
                 <p className="text-muted-foreground">Trust score</p>
                 <p className={user.trustScore < 30 ? "text-destructive" : user.trustScore < 60 ? "text-yellow-400" : "text-green-400"}>
@@ -264,7 +264,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {user?.role === "promoter" && (
+      {user && user.role !== "admin" && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

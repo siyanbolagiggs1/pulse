@@ -9,9 +9,8 @@ import (
 type Role string
 
 const (
-	RoleAdmin    Role = "admin"
-	RoleBusiness Role = "business"
-	RolePromoter Role = "promoter"
+	RoleAdmin Role = "admin"
+	RoleUser  Role = "user"
 )
 
 type VerificationBadge string

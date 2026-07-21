@@ -185,7 +185,7 @@ func handleGoogleSignIn(c *gin.Context) {
 		return
 	}
 
-	user, accessToken, err := googleSignIn(c.Request.Context(), req.Credential, req.Role)
+	user, accessToken, err := googleSignIn(c.Request.Context(), req.Credential)
 	if err != nil {
 		if errors.Is(err, ErrAccountSuspended) {
 			utils.Fail(c, http.StatusForbidden, err.Error())

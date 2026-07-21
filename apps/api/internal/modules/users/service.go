@@ -220,26 +220,32 @@ func reconnectSocialAccount(ctx context.Context, col *mongo.Collection, existing
 // only ever find promoters and vice versa — regardless of anything the
 // caller might pass in. Callers of any other role (i.e. admin, who doesn't
 // participate in chat) get an empty result.
-func searchUsers(ctx context.Context, callerRole, query string, limit int) ([]models.User, error) {
+func searchUsers(ctx context.Context, callerID, callerRole, query string, limit int) ([]models.User, error) {
 	if limit < 1 || limit > 20 {
 		limit = 20
 	}
 
-	var targetRole models.Role
-	switch callerRole {
-	case string(models.RoleBusiness):
-		targetRole = models.RolePromoter
-	case string(models.RolePromoter):
-		targetRole = models.RoleBusiness
-	default:
+	// Admins don't participate in chat search; everyone else can find any
+	// other non-suspended, non-admin user (there's no business/promoter
+	// split to search across anymore — self is excluded explicitly since
+	// caller and target now share the same role).
+	if callerRole == string(models.RoleAdmin) {
 		return []models.User{}, nil
 	}
+	callerObjID, err := bson.ObjectIDFromHex(callerID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
 
-	filter := bson.M{"role": targetRole, "isSuspended": false}
+	filter := bson.M{
+		"role":        bson.M{"$ne": string(models.RoleAdmin)},
+		"isSuspended": false,
+		"_id":         bson.M{"$ne": callerObjID},
+	}
 	if query != "" {
 		// QuoteMeta escapes regex metacharacters — an unescaped user string
 		// here is a NoSQL regex-injection / ReDoS vector, and this endpoint
-		// is reachable by any authenticated business/promoter.
+		// is reachable by any authenticated user.
 		filter["name"] = bson.M{"$regex": regexp.QuoteMeta(query), "$options": "i"}
 	}
 

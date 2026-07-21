@@ -1,6 +1,6 @@
 // ── Shared enums ────────────────────────────────────────────
 
-export type Role = "admin" | "business" | "promoter";
+export type Role = "admin" | "user";
 export type Platform = "instagram" | "twitter" | "tiktok";
 export type CampaignStatus = "draft" | "active" | "paused" | "completed" | "cancelled";
 export type SubmissionStatus = "pending" | "approved" | "rejected";

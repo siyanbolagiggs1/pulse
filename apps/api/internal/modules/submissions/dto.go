@@ -49,8 +49,11 @@ type SubmissionListQuery struct {
 	CampaignID string `form:"campaignId"`
 	PromoterID string `form:"promoterId"`
 	Status     string `form:"status"`
-	Page       int    `form:"page"`
-	Limit      int    `form:"limit"`
+	// View scopes non-admin results: "mine" (submissions I made) or
+	// "incoming" (submissions to campaigns I own). Ignored for admins.
+	View  string `form:"view"`
+	Page  int    `form:"page"`
+	Limit int    `form:"limit"`
 }
 
 type SubmissionListMeta struct {

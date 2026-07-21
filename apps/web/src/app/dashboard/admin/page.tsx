@@ -8,7 +8,7 @@ import { Users, Megaphone, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 interface Stats {
-  users: { total: number; businesses: number; promoters: number; admins: number; suspended: number };
+  users: { total: number; users: number; suspended: number };
   campaigns: { total: number; active: number; completed: number; totalBudget: number };
   submissions: { total: number; pending: number; approved: number; rejected: number };
   financials: { totalTopups: number; totalPayouts: number; totalCommission: number; pendingWithdrawals: number };
@@ -38,12 +38,11 @@ export default function AdminDashboardPage() {
 
   const cards = [
     { label: "Total Users", value: stats.users.total, sub: `${stats.users.suspended} suspended`, icon: Users, color: "text-blue-400" },
-    { label: "Businesses", value: stats.users.businesses, sub: "registered", icon: Users, color: "text-purple-400" },
-    { label: "Promoters", value: stats.users.promoters, sub: "registered", icon: Users, color: "text-pink-400" },
+    { label: "Users", value: stats.users.users, sub: "registered", icon: Users, color: "text-purple-400" },
     { label: "Active Campaigns", value: stats.campaigns.active, sub: `${stats.campaigns.total} total`, icon: Megaphone, color: "text-yellow-400" },
     { label: "Pending Submissions", value: stats.submissions.pending, sub: `${stats.submissions.total} total`, icon: FileCheck, color: "text-orange-400" },
     { label: "Total Revenue", value: formatCurrency(stats.financials.totalCommission), sub: "platform commission", icon: DollarSign, color: "text-green-400" },
-    { label: "Total Payouts", value: formatCurrency(stats.financials.totalPayouts), sub: "to promoters", icon: DollarSign, color: "text-teal-400" },
+    { label: "Total Payouts", value: formatCurrency(stats.financials.totalPayouts), sub: "to users", icon: DollarSign, color: "text-teal-400" },
     { label: "Pending Withdrawals", value: formatCurrency(stats.financials.pendingWithdrawals), sub: "awaiting approval", icon: DollarSign, color: "text-red-400" },
   ];
 

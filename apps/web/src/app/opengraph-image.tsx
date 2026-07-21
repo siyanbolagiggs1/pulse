@@ -37,8 +37,8 @@ export default async function Image() {
             maxWidth: 900,
           }}
         >
-          Community-powered social promotion — businesses run repost
-          campaigns, promoters earn money sharing them.
+          Community-powered social promotion — run repost campaigns and
+          earn money sharing them, all from one account.
         </div>
       </div>
     ),

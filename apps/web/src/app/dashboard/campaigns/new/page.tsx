@@ -83,7 +83,7 @@ export default function NewCampaignPage() {
 
             <div className="space-y-1">
               <Label>Description</Label>
-              <Textarea placeholder="Describe what promoters will share and why..." rows={4} {...register("description")} />
+              <Textarea placeholder="Describe what people will share and why..." rows={4} {...register("description")} />
               {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
             </div>
 

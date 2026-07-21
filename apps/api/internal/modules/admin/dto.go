@@ -70,10 +70,9 @@ type PlatformStats struct {
 }
 
 type UserStats struct {
-	Total      int64 `json:"total"`
-	Businesses int64 `json:"businesses"`
-	Promoters  int64 `json:"promoters"`
-	Suspended  int64 `json:"suspended"`
+	Total     int64 `json:"total"`
+	Users     int64 `json:"users"`
+	Suspended int64 `json:"suspended"`
 }
 
 type CampaignStats struct {

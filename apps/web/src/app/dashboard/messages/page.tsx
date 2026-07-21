@@ -106,7 +106,7 @@ export default function MessagesPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Messages</h2>
-          <p className="text-muted-foreground">Direct messages between businesses and promoters</p>
+          <p className="text-muted-foreground">Direct messages with other Pulse users</p>
         </div>
         {user?.role !== "admin" && (
           <Button variant="outline" onClick={handleHelp} disabled={gettingHelp}>

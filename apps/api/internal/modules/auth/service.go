@@ -60,7 +60,7 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 		Name:             req.Name,
 		Email:            req.Email,
 		Password:         hashedPw,
-		Role:             req.Role,
+		Role:             models.RoleUser,
 		IsEmailVerified:  false,
 		IsSuspended:      false,
 		TrustScore:       50,
@@ -329,7 +329,7 @@ func resetPassword(ctx context.Context, token, newPassword string) error {
 }
 
 // googleSignIn verifies a Google ID token and signs in or creates a user.
-func googleSignIn(ctx context.Context, credential, role string) (*models.User, string, error) {
+func googleSignIn(ctx context.Context, credential string) (*models.User, string, error) {
 	if config.App.GoogleClientID == "" {
 		return nil, "", errors.New("Google sign-in is not configured")
 	}
@@ -369,15 +369,12 @@ func googleSignIn(ctx context.Context, credential, role string) (*models.User, s
 
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		// New user — create account.
-		if role == "" {
-			role = "promoter"
-		}
 		now := time.Now().UTC()
 		user = models.User{
 			Name:            info.Name,
 			Email:           info.Email,
 			Password:        "", // no password for Google-auth users
-			Role:            models.Role(role),
+			Role:            models.RoleUser,
 			IsEmailVerified: true,
 			IsSuspended:     false,
 			TrustScore:      50,

@@ -22,15 +22,15 @@ interface Meta { total: number; page: number; limit: number; pages: number; unre
 // ── Auth ─────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (body: { name: string; email: string; password: string; role: string }) =>
+  register: (body: { name: string; email: string; password: string }) =>
     api.post<{ success: boolean; data: { user: User; accessToken: string } }>("/auth/register", body),
   login: (email: string, password: string) =>
     api.post<{ success: boolean; data: { user: User; accessToken: string; refreshToken: string } }>("/auth/login", { email, password }),
   logout: () => api.post("/auth/logout"),
   me: () => api.get<{ success: boolean; data: User }>("/auth/me"),
   verifyEmail: (token: string) => api.get(`/auth/verify-email/${token}`),
-  googleSignIn: (credential: string, role?: string) =>
-    api.post<{ success: boolean; data: { user: User; accessToken: string } }>("/auth/google", { credential, role }),
+  googleSignIn: (credential: string) =>
+    api.post<{ success: boolean; data: { user: User; accessToken: string } }>("/auth/google", { credential }),
   forgotPassword: (email: string) => api.post("/auth/forgot-password", { email }),
   resetPassword: (token: string, password: string) =>
     api.post(`/auth/reset-password/${token}`, { password }),
