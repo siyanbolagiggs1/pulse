@@ -27,6 +27,7 @@ var (
 	ErrCooldownActive         = errors.New("you can request re-verification once every 30 days")
 	ErrPaystackNotConfigured  = errors.New("payment processing is not configured — add PAYSTACK_SECRET_KEY")
 	ErrInvalidBankAccount     = errors.New("could not verify this bank account — check the account number and bank")
+	ErrNonZeroBalance         = errors.New("wallet balance must be zero before the account can be deleted")
 )
 
 func getMe(ctx context.Context, userID string) (*models.User, []models.SocialAccount, error) {
@@ -339,4 +340,102 @@ func deleteSocialAccount(ctx context.Context, userID, accountID string) error {
 		return ErrAccountNotFound
 	}
 	return nil
+}
+
+// DeleteAccount permanently removes a user and every record that references
+// them. MongoDB doesn't cascade deletes on its own, so this walks each
+// dependent collection explicitly (the same set audited in
+// cmd/cleanup-orphans), inside a transaction so a failure partway through
+// can't leave the account half-deleted. Refuses to run if the wallet still
+// holds a nonzero balance — that money needs to be paid out or resolved
+// first, not silently discarded.
+func DeleteAccount(ctx context.Context, userID string) error {
+	objID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	var w models.Wallet
+	err = database.GetCollection(models.WalletsCollection).
+		FindOne(ctx, bson.M{"userId": objID}).Decode(&w)
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		return err
+	}
+	if w.AvailableBalance != 0 || w.PendingBalance != 0 {
+		return ErrNonZeroBalance
+	}
+
+	session, err := database.DB.Client().StartSession()
+	if err != nil {
+		return err
+	}
+	defer session.EndSession(ctx)
+
+	_, err = session.WithTransaction(ctx, func(sessCtx context.Context) (interface{}, error) {
+		userRef := bson.M{"userId": objID}
+
+		for _, collection := range []string{
+			models.WalletsCollection,
+			models.TransactionsCollection,
+			models.WithdrawalsCollection,
+			models.FraudFlagsCollection,
+			models.NotificationsCollection,
+			models.SocialAccountsCollection,
+		} {
+			if _, err := database.GetCollection(collection).DeleteMany(sessCtx, userRef); err != nil {
+				return nil, err
+			}
+		}
+
+		if _, err := database.GetCollection(models.CampaignsCollection).
+			DeleteMany(sessCtx, bson.M{"businessId": objID}); err != nil {
+			return nil, err
+		}
+
+		if _, err := database.GetCollection(models.SubmissionsCollection).
+			DeleteMany(sessCtx, bson.M{"$or": []bson.M{{"promoterId": objID}, {"businessId": objID}}}); err != nil {
+			return nil, err
+		}
+
+		convFilter := bson.M{"$or": []bson.M{{"userAId": objID}, {"userBId": objID}}}
+		convCursor, err := database.GetCollection(models.ConversationsCollection).Find(sessCtx, convFilter)
+		if err != nil {
+			return nil, err
+		}
+		var convIDs []bson.ObjectID
+		for convCursor.Next(sessCtx) {
+			var doc struct {
+				ID bson.ObjectID `bson:"_id"`
+			}
+			if err := convCursor.Decode(&doc); err != nil {
+				convCursor.Close(sessCtx)
+				return nil, err
+			}
+			convIDs = append(convIDs, doc.ID)
+		}
+		convCursor.Close(sessCtx)
+
+		if _, err := database.GetCollection(models.MessagesCollection).DeleteMany(sessCtx, bson.M{
+			"$or": []bson.M{
+				{"senderId": objID},
+				{"conversationId": bson.M{"$in": convIDs}},
+			},
+		}); err != nil {
+			return nil, err
+		}
+
+		if _, err := database.GetCollection(models.ConversationsCollection).
+			DeleteMany(sessCtx, convFilter); err != nil {
+			return nil, err
+		}
+
+		if _, err := database.GetCollection(models.UsersCollection).
+			DeleteOne(sessCtx, bson.M{"_id": objID}); err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	})
+
+	return err
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { usersApi } from "@/lib/api";
 import type { SocialAccount } from "@/types";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Trash2, Plus, ExternalLink, Loader2, Landmark, Pencil } from "lucide-react";
+import { Trash2, Plus, ExternalLink, Loader2, Landmark, Pencil, AlertTriangle } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 type Platform = "instagram" | "twitter" | "tiktok";
@@ -32,11 +33,16 @@ const statusBadge = (status: string) => {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
 
   const [name, setName] = useState(user?.name ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [banks, setBanks] = useState<{ code: string; name: string }[]>([]);
   const [bankOpen, setBankOpen] = useState(false);
@@ -84,7 +90,7 @@ export default function ProfilePage() {
     } finally { setSavingProfile(false); }
   };
 
-  const handleDeleteAccount = async (id: string) => {
+  const handleRemoveSocialAccount = async (id: string) => {
     setDeletingId(id);
     try {
       await usersApi.deleteSocialAccount(id);
@@ -93,6 +99,24 @@ export default function ProfilePage() {
     } catch {
       toast({ title: "Failed to remove account", variant: "destructive" });
     } finally { setDeletingId(null); }
+  };
+
+  const handleDeleteMyAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await usersApi.deleteAccount();
+      clearAuth();
+      toast({ title: "Account deleted" });
+      router.push("/signin");
+    } catch (err: any) {
+      toast({
+        title: "Could not delete account",
+        description: err?.response?.data?.message,
+        variant: "destructive",
+      });
+      setDeletingAccount(false);
+      setDeleteOpen(false);
+    }
   };
 
   const handleConnect = async () => {
@@ -282,7 +306,7 @@ export default function ProfilePage() {
                     </div>
                     <Button
                       variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDeleteAccount(a.id)}
+                      onClick={() => handleRemoveSocialAccount(a.id)}
                       disabled={deletingId === a.id}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -299,6 +323,37 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="border-destructive/40">
+        <CardHeader><CardTitle className="text-destructive">Danger Zone</CardTitle></CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            Permanently delete your account and everything tied to it. Your wallet balance must be zero first.
+          </p>
+          <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" />Delete Account
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Delete your account?</DialogTitle></DialogHeader>
+          <div className="flex gap-3 rounded-md bg-destructive/10 border border-destructive/30 p-3 text-sm">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+            <p>
+              This permanently deletes your profile, wallet, transactions, campaigns/submissions, messages and
+              connected accounts. This cannot be undone. If your wallet balance isn&apos;t zero, this will fail.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deletingAccount}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteMyAccount} disabled={deletingAccount}>
+              {deletingAccount ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting…</> : "Yes, delete my account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={connectOpen} onOpenChange={(o) => { setConnectOpen(o); if (!o) resetDialog(); }}>
         <DialogContent className="max-w-md">

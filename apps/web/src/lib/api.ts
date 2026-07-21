@@ -48,6 +48,7 @@ export const usersApi = {
   listBanks: () => api.get<{ success: boolean; data: { code: string; name: string }[] }>("/users/banks"),
   setBankAccount: (body: { bankCode: string; accountNumber: string }) =>
     api.post<{ success: boolean; data: BankAccount }>("/users/bank-account", body),
+  deleteAccount: () => api.delete("/users/me"),
 };
 
 // ── Campaigns ────────────────────────────────────────────────
@@ -103,6 +104,7 @@ export const adminApi = {
   getUser: (id: string) => api.get<{ success: boolean; data: User }>(`/admin/users/${id}`),
   suspendUser: (id: string, reason?: string) => api.post(`/admin/users/${id}/suspend`, { reason }),
   unsuspendUser: (id: string) => api.post(`/admin/users/${id}/unsuspend`),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
   listFraudFlags: (params?: object) => api.get("/admin/fraud-flags", { params }),
   resolveFraudFlag: (id: string) => api.post(`/admin/fraud-flags/${id}/resolve`),
   listWithdrawals: (params?: object) =>

@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination } from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
@@ -30,6 +32,8 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [acting, setActing] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { setPage(1); }, [role]);
 
@@ -66,6 +70,23 @@ export default function AdminUsersPage() {
     } catch {
       toast({ title: "Action failed", variant: "destructive" });
     } finally { setActing(null); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await adminApi.deleteUser(deleteTarget.id);
+      toast({ title: "User deleted" });
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err: any) {
+      toast({
+        title: "Could not delete user",
+        description: err?.response?.data?.message,
+        variant: "destructive",
+      });
+    } finally { setDeleting(false); }
   };
 
   return (
@@ -125,15 +146,23 @@ export default function AdminUsersPage() {
                       <TableCell className="text-muted-foreground text-sm">{format(new Date(u.createdAt), "MMM d, yyyy")}</TableCell>
                       <TableCell>
                         {u.role !== "admin" && (
-                          u.isSuspended ? (
-                            <Button size="sm" variant="outline" onClick={() => handleUnsuspend(u.id)} disabled={acting === u.id}>
-                              Unsuspend
+                          <div className="flex items-center gap-2">
+                            {u.isSuspended ? (
+                              <Button size="sm" variant="outline" onClick={() => handleUnsuspend(u.id)} disabled={acting === u.id}>
+                                Unsuspend
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="destructive" onClick={() => handleSuspend(u.id)} disabled={acting === u.id}>
+                                Suspend
+                              </Button>
+                            )}
+                            <Button
+                              size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeleteTarget(u)}
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          ) : (
-                            <Button size="sm" variant="destructive" onClick={() => handleSuspend(u.id)} disabled={acting === u.id}>
-                              Suspend
-                            </Button>
-                          )
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -147,6 +176,26 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Delete {deleteTarget?.name}?</DialogTitle></DialogHeader>
+          <div className="flex gap-3 rounded-md bg-destructive/10 border border-destructive/30 p-3 text-sm">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+            <p>
+              This permanently deletes this user and everything tied to them — wallet, transactions,
+              campaigns/submissions, messages, connected accounts. This cannot be undone, and fails if
+              their wallet balance isn&apos;t zero.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting…</> : "Yes, delete user"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

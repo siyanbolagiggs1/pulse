@@ -70,17 +70,31 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 		UpdatedAt:        now,
 	}
 
-	result, err := col.InsertOne(ctx, user)
+	// Create the user and their wallet atomically: if wallet creation fails,
+	// the user insert rolls back too. Without this, a failed wallet insert
+	// left an orphaned user behind — email already taken, but no wallet ever
+	// created, with no way for the person to recover on their own.
+	session, err := database.DB.Client().StartSession()
 	if err != nil {
 		return nil, "", err
 	}
-	// Re-fetch to get the assigned ObjectID cleanly.
-	if err := col.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(user); err != nil {
-		return nil, "", err
-	}
+	defer session.EndSession(ctx)
 
-	// Create wallet
-	if err := createWallet(ctx, user); err != nil {
+	_, err = session.WithTransaction(ctx, func(sessCtx context.Context) (interface{}, error) {
+		result, err := col.InsertOne(sessCtx, user)
+		if err != nil {
+			return nil, err
+		}
+		// Re-fetch to get the assigned ObjectID cleanly.
+		if err := col.FindOne(sessCtx, bson.M{"_id": result.InsertedID}).Decode(user); err != nil {
+			return nil, err
+		}
+		if err := createWallet(sessCtx, user); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
+	if err != nil {
 		return nil, "", err
 	}
 
@@ -372,14 +386,28 @@ func googleSignIn(ctx context.Context, credential, role string) (*models.User, s
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		result, err := col.InsertOne(ctx, user)
+		// Same atomic user+wallet creation as the email/password register()
+		// path — see the comment there for why.
+		session, err := database.DB.Client().StartSession()
 		if err != nil {
 			return nil, "", err
 		}
-		if err := col.FindOne(ctx, bson.M{"_id": result.InsertedID}).Decode(&user); err != nil {
-			return nil, "", err
-		}
-		if err := createWallet(ctx, &user); err != nil {
+		defer session.EndSession(ctx)
+
+		_, err = session.WithTransaction(ctx, func(sessCtx context.Context) (interface{}, error) {
+			result, err := col.InsertOne(sessCtx, user)
+			if err != nil {
+				return nil, err
+			}
+			if err := col.FindOne(sessCtx, bson.M{"_id": result.InsertedID}).Decode(&user); err != nil {
+				return nil, err
+			}
+			if err := createWallet(sessCtx, &user); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		})
+		if err != nil {
 			return nil, "", err
 		}
 

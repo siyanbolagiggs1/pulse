@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
 	"github.com/pulse/api/internal/models"
+	"github.com/pulse/api/internal/modules/users"
 	"github.com/pulse/api/internal/modules/wallet"
 	"github.com/pulse/api/internal/utils"
 )
@@ -104,6 +105,23 @@ func handleUnsuspendUser(c *gin.Context) {
 	}
 
 	utils.OK(c, http.StatusOK, "User reinstated", nil)
+}
+
+// DELETE /api/admin/users/:id
+func handleDeleteUser(c *gin.Context) {
+	if err := users.DeleteAccount(c.Request.Context(), c.Param("id")); err != nil {
+		switch {
+		case errors.Is(err, users.ErrUserNotFound):
+			utils.Fail(c, http.StatusNotFound, "User not found")
+		case errors.Is(err, users.ErrNonZeroBalance):
+			utils.Fail(c, http.StatusConflict, err.Error())
+		default:
+			utils.Fail(c, http.StatusInternalServerError, "Failed to delete user")
+		}
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "User deleted", nil)
 }
 
 // GET /api/admin/fraud-flags

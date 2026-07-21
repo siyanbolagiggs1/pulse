@@ -120,6 +120,24 @@ func handleSetBankAccount(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "Bank account verified and saved", toBankAccountResponse(bankAccount))
 }
 
+// DELETE /api/users/me
+func handleDeleteAccount(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if err := DeleteAccount(c.Request.Context(), userID); err != nil {
+		switch {
+		case errors.Is(err, ErrUserNotFound):
+			utils.Fail(c, http.StatusNotFound, "User not found")
+		case errors.Is(err, ErrNonZeroBalance):
+			utils.Fail(c, http.StatusConflict, err.Error())
+		default:
+			utils.Fail(c, http.StatusInternalServerError, "Failed to delete account")
+		}
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "Account deleted", nil)
+}
+
 // DELETE /api/users/social-accounts/:id
 func handleDeleteSocialAccount(c *gin.Context) {
 	id := c.Param("id")

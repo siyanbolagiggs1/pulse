@@ -17,6 +17,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 	a.GET("/users/:id", handleGetUser)
 	a.POST("/users/:id/suspend", handleSuspendUser)
 	a.POST("/users/:id/unsuspend", handleUnsuspendUser)
+	a.DELETE("/users/:id", handleDeleteUser)
 
 	a.GET("/fraud-flags", handleListFraudFlags)
 	a.POST("/fraud-flags/:id/resolve", handleResolveFraudFlag)

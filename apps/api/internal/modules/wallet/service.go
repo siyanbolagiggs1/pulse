@@ -42,10 +42,14 @@ func getWallet(ctx context.Context, userID string) (*models.Wallet, []models.Tra
 	var w models.Wallet
 	if err := database.GetCollection(models.WalletsCollection).
 		FindOne(ctx, bson.M{"userId": objID}).Decode(&w); err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, nil, ErrWalletNotFound
+		if !errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil, err
 		}
-		return nil, nil, err
+		created, healErr := ensureWallet(ctx, objID)
+		if healErr != nil {
+			return nil, nil, healErr
+		}
+		w = *created
 	}
 
 	cursor, err := database.GetCollection(models.TransactionsCollection).Find(ctx,
@@ -63,6 +67,42 @@ func getWallet(ctx context.Context, userID string) (*models.Wallet, []models.Tra
 	_ = cursor.All(ctx, &txs)
 
 	return &w, txs, nil
+}
+
+// ensureWallet lazily creates a zero-balance wallet for a user that doesn't
+// have one — a safety net for any account that ended up walletless (a
+// pre-transaction-fix signup, or any future code path that misses it).
+// The unique index on wallets.userId makes concurrent callers safe: the
+// loser of the race just re-fetches what the winner created.
+func ensureWallet(ctx context.Context, objID bson.ObjectID) (*models.Wallet, error) {
+	var user models.User
+	if err := database.GetCollection(models.UsersCollection).
+		FindOne(ctx, bson.M{"_id": objID}).Decode(&user); err != nil {
+		return nil, ErrWalletNotFound
+	}
+
+	now := time.Now().UTC()
+	w := models.Wallet{
+		UserID:    objID,
+		Role:      user.Role,
+		Currency:  config.App.PaystackCurrency,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	walletCol := database.GetCollection(models.WalletsCollection)
+	result, err := walletCol.InsertOne(ctx, w)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			if ferr := walletCol.FindOne(ctx, bson.M{"userId": objID}).Decode(&w); ferr != nil {
+				return nil, ferr
+			}
+			return &w, nil
+		}
+		return nil, err
+	}
+	w.ID = result.InsertedID.(bson.ObjectID)
+	return &w, nil
 }
 
 func getTransactions(ctx context.Context, userID string, page, limit int) ([]models.Transaction, int64, error) {
@@ -188,7 +228,14 @@ func creditWallet(ctx context.Context, userID string, amount float64, reference 
 
 	var w models.Wallet
 	if err := walletCol.FindOne(ctx, bson.M{"userId": objID}).Decode(&w); err != nil {
-		return ErrWalletNotFound
+		if !errors.Is(err, mongo.ErrNoDocuments) {
+			return err
+		}
+		created, healErr := ensureWallet(ctx, objID)
+		if healErr != nil {
+			return healErr
+		}
+		w = *created
 	}
 
 	_, err = walletCol.UpdateOne(ctx,
