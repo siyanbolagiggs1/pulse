@@ -116,6 +116,19 @@ func createWalletIndexes(ctx context.Context) {
 			Keys:    bson.D{{Key: "walletId", Value: 1}},
 			Options: options.Index().SetName("wallet_id"),
 		},
+		{
+			// Paystack calls both the webhook and the client-triggered verify
+			// endpoint for the same charge, so creditWallet can be invoked
+			// twice for one payment. This index makes the top-up transaction
+			// insert (which creditWallet does before touching the balance)
+			// fail the second time with the same reference, so the balance
+			// only ever gets credited once per payment.
+			Keys: bson.D{{Key: "referenceId", Value: 1}},
+			Options: options.Index().
+				SetUnique(true).
+				SetName("topup_reference_unique").
+				SetPartialFilterExpression(bson.M{"type": string(models.TxTopup)}),
+		},
 	}
 	mustCreateIndexes(ctx, txCol, txIndexes, "transactions")
 }

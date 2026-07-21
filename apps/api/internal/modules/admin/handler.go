@@ -221,7 +221,7 @@ func handleApproveWithdrawal(c *gin.Context) {
 		case errors.Is(err, wallet.ErrNoBankAccount), errors.Is(err, wallet.ErrTransferOTPRequired):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
 		default:
-			utils.Fail(c, http.StatusInternalServerError, "Failed to approve withdrawal")
+			utils.Fail(c, http.StatusInternalServerError, "Failed to approve withdrawal: "+err.Error())
 		}
 		return
 	}
@@ -245,7 +245,7 @@ func handleRejectWithdrawal(c *gin.Context) {
 		case errors.Is(err, ErrNotReviewable):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
 		default:
-			utils.Fail(c, http.StatusInternalServerError, "Failed to reject withdrawal")
+			utils.Fail(c, http.StatusInternalServerError, "Failed to reject withdrawal: "+err.Error())
 		}
 		return
 	}

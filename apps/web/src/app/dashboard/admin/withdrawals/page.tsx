@@ -7,6 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { Check, X } from "lucide-react";
@@ -31,6 +34,8 @@ export default function AdminWithdrawalsPage() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("pending");
   const [acting, setActing] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const load = () => {
     const params: Record<string, string> = {};
@@ -55,14 +60,20 @@ export default function AdminWithdrawalsPage() {
     } finally { setActing(null); }
   };
 
-  const handleReject = async (id: string) => {
-    setActing(id);
+  const handleReject = async () => {
+    if (!rejectTarget) return;
+    if (rejectReason.trim().length < 5) {
+      return toast({ title: "Reason must be at least 5 characters", variant: "destructive" });
+    }
+    setActing(rejectTarget);
     try {
-      await adminApi.rejectWithdrawal(id);
+      await adminApi.rejectWithdrawal(rejectTarget, rejectReason.trim());
       toast({ title: "Withdrawal rejected", description: "Balance refunded to promoter." });
-      setWithdrawals((prev) => prev.filter((w) => w.id !== id));
-    } catch {
-      toast({ title: "Rejection failed", variant: "destructive" });
+      setWithdrawals((prev) => prev.filter((w) => w.id !== rejectTarget));
+      setRejectTarget(null);
+      setRejectReason("");
+    } catch (err: any) {
+      toast({ title: "Rejection failed", description: err?.response?.data?.message, variant: "destructive" });
     } finally { setActing(null); }
   };
 
@@ -123,7 +134,7 @@ export default function AdminWithdrawalsPage() {
                             <Check className="h-4 w-4" />
                           </Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-red-400"
-                            onClick={() => handleReject(w.id)} disabled={acting === w.id}>
+                            onClick={() => { setRejectTarget(w.id); setRejectReason(""); }} disabled={acting === w.id}>
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
@@ -136,6 +147,26 @@ export default function AdminWithdrawalsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o) setRejectTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Reject withdrawal</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Reason (min 5 characters)</Label>
+            <Textarea
+              placeholder="Why is this withdrawal being rejected?"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={acting === rejectTarget}>Cancel</Button>
+            <Button variant="destructive" onClick={handleReject} disabled={acting === rejectTarget}>
+              {acting === rejectTarget ? "Rejecting…" : "Reject & Refund"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

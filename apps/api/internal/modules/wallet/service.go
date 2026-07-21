@@ -149,9 +149,12 @@ func getTransactions(ctx context.Context, userID string, page, limit int) ([]mod
 // ── Top-up ───────────────────────────────────────────────────
 
 func createTopup(ctx context.Context, userID string, amount float64) (*TopupResponse, error) {
-	// Dev mode: no Paystack key — credit wallet directly.
+	// Dev mode: no Paystack key — credit wallet directly. Each call needs
+	// its own reference (not a shared "dev_topup" literal) since creditWallet
+	// now treats a repeated reference as an already-processed duplicate.
 	if config.App.PaystackSecretKey == "" {
-		if err := creditWallet(ctx, userID, amount, "dev_topup"); err != nil {
+		ref := fmt.Sprintf("dev_topup_%s_%d", userID, time.Now().UnixNano())
+		if err := creditWallet(ctx, userID, amount, ref); err != nil {
 			return nil, err
 		}
 		return &TopupResponse{Amount: amount}, nil
@@ -238,17 +241,12 @@ func creditWallet(ctx context.Context, userID string, amount float64, reference 
 		w = *created
 	}
 
-	_, err = walletCol.UpdateOne(ctx,
-		bson.M{"userId": objID},
-		bson.M{
-			"$inc": bson.M{"availableBalance": amount},
-			"$set": bson.M{"updatedAt": now},
-		},
-	)
-	if err != nil {
-		return err
-	}
-
+	// Record the transaction before touching the balance. Paystack calls
+	// both the webhook and the client-triggered verify endpoint for the
+	// same charge, so this function gets invoked twice per payment — the
+	// unique (topup, referenceId) index makes the second insert fail,
+	// which we treat as "already credited" and stop before incrementing
+	// the balance a second time.
 	tx := models.Transaction{
 		WalletID:     w.ID,
 		UserID:       objID,
@@ -259,7 +257,23 @@ func creditWallet(ctx context.Context, userID string, amount float64, reference 
 		Description:  fmt.Sprintf("Wallet top-up (%.2f %s)", amount, config.App.PaystackCurrency),
 		CreatedAt:    now,
 	}
-	_, _ = database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx)
+	if _, err := database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx); err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil
+		}
+		return err
+	}
+
+	_, err = walletCol.UpdateOne(ctx,
+		bson.M{"userId": objID},
+		bson.M{
+			"$inc": bson.M{"availableBalance": amount},
+			"$set": bson.M{"updatedAt": now},
+		},
+	)
+	if err != nil {
+		return err
+	}
 
 	go notifications.Send(context.Background(), objID, models.NotifWalletTopup,
 		"Wallet Topped Up",
