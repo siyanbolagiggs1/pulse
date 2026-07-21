@@ -50,8 +50,8 @@ export default function MarketplacePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Marketplace</h2>
-        <p className="text-muted-foreground">Browse adverts and earn by sharing</p>
+        <h2 className="text-2xl font-bold">Earn Hub</h2>
+        <p className="text-muted-foreground">Pick an advert, repost it on your social account, and submit proof — you earn a payout once it's approved</p>
       </div>
 
       <div className="flex gap-3">

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Megaphone, Store, FileText, Wallet,
+  LayoutDashboard, Megaphone, Coins, FileText, Wallet,
   Users, AlertTriangle, ArrowDownToLine, LogOut, UserCircle, ShieldCheck, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,7 @@ type NavItem = { label: string; href: string; icon: React.ElementType };
 const userNav: NavItem[] = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "My Adverts", href: "/dashboard/campaigns", icon: Megaphone },
-  { label: "Marketplace", href: "/dashboard/marketplace", icon: Store },
+  { label: "Earn Hub", href: "/dashboard/marketplace", icon: Coins },
   { label: "Submissions", href: "/dashboard/submissions", icon: FileText },
   { label: "Messages", href: "/dashboard/messages", icon: MessageCircle },
   { label: "Wallet", href: "/dashboard/wallet", icon: Wallet },
