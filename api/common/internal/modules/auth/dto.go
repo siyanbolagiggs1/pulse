@@ -23,6 +23,10 @@ type ForgotPasswordRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
+type ResendVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
 type ResetPasswordRequest struct {
 	Password string `json:"password" binding:"required,min=8,max=72"`
 }

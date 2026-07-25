@@ -220,8 +220,13 @@ func createChatIndexes(ctx context.Context) {
 	mustCreateIndexes(ctx, msgCol, msgIndexes, "messages")
 }
 
+// mustCreateIndexes creates the given indexes or crashes the process. A
+// silently-missing index is invisible until something that depends on it for
+// correctness (e.g. a uniqueness guard) quietly stops working — for indexes
+// that matter, failing loudly at startup beats a broken guarantee running in
+// production undetected.
 func mustCreateIndexes(ctx context.Context, col *mongo.Collection, indexes []mongo.IndexModel, name string) {
 	if _, err := col.Indexes().CreateMany(ctx, indexes); err != nil {
-		log.Printf("Warning: could not create indexes for %s: %v", name, err)
+		log.Fatalf("FATAL: could not create indexes for %s: %v", name, err)
 	}
 }

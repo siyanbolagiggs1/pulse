@@ -24,6 +24,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { setAuth } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -31,14 +33,31 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
+    setUnverifiedEmail(null);
     try {
       const res = await authApi.login(data.email, data.password);
       setAuth(res.data.data.user, res.data.data.accessToken, res.data.data.refreshToken);
       router.push("/dashboard");
     } catch (err: any) {
+      if (err?.response?.status === 403 && err?.response?.data?.message?.toLowerCase().includes("verify")) {
+        setUnverifiedEmail(data.email);
+      }
       toast({ title: "Login failed", description: err?.response?.data?.message ?? "Invalid credentials", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+    setResending(true);
+    try {
+      await authApi.resendVerification(unverifiedEmail);
+      toast({ title: "Verification email sent", description: "Check your inbox for the new link." });
+    } catch {
+      toast({ title: "Could not resend email", variant: "destructive" });
+    } finally {
+      setResending(false);
     }
   };
 
@@ -76,6 +95,18 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </Button>
+
+          {unverifiedEmail && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={resending}
+              onClick={handleResendVerification}
+            >
+              {resending ? "Sending…" : "Resend verification email"}
+            </Button>
+          )}
         </form>
 
         <div className="relative my-4">

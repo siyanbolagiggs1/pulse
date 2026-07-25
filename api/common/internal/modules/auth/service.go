@@ -249,6 +249,49 @@ func verifyEmail(ctx context.Context, token string) error {
 	return nil
 }
 
+// resendVerification issues a fresh verification token and re-sends the
+// email. Always succeeds silently for a nonexistent or already-verified
+// account — same non-enumeration pattern as forgotPassword — so the caller
+// can't use this to probe which emails are registered.
+func resendVerification(ctx context.Context, email string) error {
+	col := database.GetCollection(models.UsersCollection)
+
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	var user models.User
+	if err := col.FindOne(ctx, bson.M{"email": email}).Decode(&user); err != nil {
+		return nil
+	}
+	if user.IsEmailVerified {
+		return nil
+	}
+
+	verifyToken, err := utils.GenerateSecureToken(32)
+	if err != nil {
+		return err
+	}
+
+	_, err = col.UpdateOne(ctx,
+		bson.M{"_id": user.ID},
+		bson.M{"$set": bson.M{
+			"emailVerifyToken": verifyToken,
+			"updatedAt":        time.Now().UTC(),
+		}},
+	)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		fmt.Printf("\n[DEV] Verification link: %s/verify-email/%s\n", config.App.ClientURL, verifyToken)
+		if err := services.SendVerificationEmail(user.Email, user.Name, verifyToken); err != nil {
+			fmt.Printf("Warning: could not send verification email to %s: %v\n", user.Email, err)
+		}
+	}()
+
+	return nil
+}
+
 // forgotPassword generates a reset token and emails it.
 func forgotPassword(ctx context.Context, email string) error {
 	col := database.GetCollection(models.UsersCollection)

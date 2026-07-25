@@ -126,6 +126,19 @@ func handleVerifyEmail(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "Email verified. You can now log in.", nil)
 }
 
+// POST /api/auth/resend-verification
+func handleResendVerification(c *gin.Context) {
+	var req ResendVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.FailWithErrors(c, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	// Always respond with 200 — don't reveal whether the email exists or is already verified
+	_ = resendVerification(c.Request.Context(), req.Email)
+	utils.OK(c, http.StatusOK, "If that email is registered and not yet verified, a new verification link has been sent.", nil)
+}
+
 // POST /api/auth/forgot-password
 func handleForgotPassword(c *gin.Context) {
 	var req ForgotPasswordRequest

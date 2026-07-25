@@ -346,7 +346,7 @@ func requestWithdrawal(ctx context.Context, userID string, amount float64) (*mod
 		WalletID:     w.ID,
 		UserID:       objID,
 		Type:         models.TxWithdrawal,
-		Amount:       amount,
+		Amount:       -amount,
 		BalanceAfter: w.AvailableBalance - amount,
 		ReferenceID:  result.InsertedID.(bson.ObjectID).Hex(),
 		Description:  fmt.Sprintf("Withdrawal request (%.2f %s)", amount, config.App.PaystackCurrency),
