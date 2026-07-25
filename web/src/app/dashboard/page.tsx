@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CampaignPreviewCard } from "@/components/shared/CampaignPreviewCard";
 import { formatCurrency } from "@/lib/utils";
 import { Megaphone, Coins, ArrowRight } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
@@ -64,24 +65,37 @@ export default function DashboardPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent>
             {loading ? (
-              <Skeleton className="h-32" />
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-44 w-56 shrink-0 rounded-lg" />)}
+              </div>
             ) : myCampaigns.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 No adverts yet.{" "}
                 <Link href="/dashboard/campaigns/new" className="text-primary hover:underline">Create one</Link>
               </div>
-            ) : myCampaigns.map((c) => (
-              <Link key={c.id} href={`/dashboard/campaigns/${c.id}`}
-                className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-accent">
-                <div>
-                  <p className="text-sm font-medium">{c.title}</p>
-                  <p className="text-xs text-muted-foreground">{c.currentParticipants}/{c.maxParticipants} participants</p>
-                </div>
-                <Badge variant={c.status === "active" ? "success" : "secondary"}>{c.status}</Badge>
-              </Link>
-            ))}
+            ) : (
+              <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+                {myCampaigns.map((c) => (
+                  <CampaignPreviewCard
+                    key={c.id}
+                    campaign={c}
+                    href={`/dashboard/campaigns/${c.id}`}
+                    footer={
+                      <>
+                        <span className="text-xs text-muted-foreground">
+                          {c.currentParticipants}/{c.maxParticipants}
+                        </span>
+                        <Badge variant={c.status === "active" ? "success" : "secondary"} className="shrink-0">
+                          {c.status}
+                        </Badge>
+                      </>
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -95,21 +109,29 @@ export default function DashboardPage() {
             </div>
             <p className="text-xs text-muted-foreground">Repost an advert and earn a payout once it's approved</p>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent>
             {loading ? (
-              <Skeleton className="h-32" />
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-44 w-56 shrink-0 rounded-lg" />)}
+              </div>
             ) : marketplace.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No open adverts right now.</p>
-            ) : marketplace.map((c) => (
-              <Link key={c.id} href={`/dashboard/marketplace/${c.id}`}
-                className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-accent">
-                <div>
-                  <p className="text-sm font-medium">{c.title}</p>
-                  <p className="text-xs text-muted-foreground">Base payout {formatCurrency(c.baseRepostRate)}</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Link>
-            ))}
+            ) : (
+              <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+                {marketplace.map((c) => (
+                  <CampaignPreviewCard
+                    key={c.id}
+                    campaign={c}
+                    href={`/dashboard/marketplace/${c.id}`}
+                    footer={
+                      <span className="text-xs text-muted-foreground">
+                        Base payout {formatCurrency(c.baseRepostRate)}
+                      </span>
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

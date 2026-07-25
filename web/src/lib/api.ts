@@ -12,6 +12,7 @@ import type {
   Conversation,
   AdminConversation,
   ChatMessage,
+  LinkPreview,
 } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -58,6 +59,7 @@ export const campaignsApi = {
   list: (params?: object) => api.get<{ success: boolean; data: Campaign[]; meta: Meta }>("/campaigns", { params }),
   getMy: (params?: object) => api.get<{ success: boolean; data: Campaign[]; meta: Meta }>("/campaigns/my", { params }),
   get: (id: string) => api.get<{ success: boolean; data: Campaign }>(`/campaigns/${id}`),
+  getLinkPreview: (id: string) => api.get<{ success: boolean; data: LinkPreview }>(`/campaigns/${id}/link-preview`),
   create: (body: object) => api.post<{ success: boolean; data: Campaign }>("/campaigns", body),
   update: (id: string, body: object) => api.patch<{ success: boolean; data: Campaign }>(`/campaigns/${id}`, body),
   delete: (id: string) => api.delete(`/campaigns/${id}`),

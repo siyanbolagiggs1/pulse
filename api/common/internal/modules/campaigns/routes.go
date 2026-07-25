@@ -15,6 +15,7 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 		c.POST("", auth, handleCreateCampaign)
 		c.GET("/my", auth, handleGetMyCampaigns)
 		c.GET("/:id", auth, handleGetCampaign)
+		c.GET("/:id/link-preview", auth, handleGetLinkPreview)
 		c.PATCH("/:id", auth, handleUpdateCampaign)
 		c.DELETE("/:id", auth, handleDeleteCampaign)
 	}

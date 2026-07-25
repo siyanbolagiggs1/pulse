@@ -71,6 +71,14 @@ export interface Campaign {
   updatedAt: string;
 }
 
+export interface LinkPreview {
+  title: string;
+  image: string;
+  description: string;
+  domain: string;
+  url: string;
+}
+
 // ── Submission ───────────────────────────────────────────────
 
 export interface CampaignSubmission {

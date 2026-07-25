@@ -104,6 +104,22 @@ func handleGetCampaign(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "", toCampaignResponse(campaign))
 }
 
+// GET /api/campaigns/:id/link-preview
+func handleGetLinkPreview(c *gin.Context) {
+	id := c.Param("id")
+	preview, err := getLinkPreview(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrCampaignNotFound) {
+			utils.Fail(c, http.StatusNotFound, "Campaign not found")
+			return
+		}
+		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch link preview")
+		return
+	}
+
+	utils.OK(c, http.StatusOK, "", preview)
+}
+
 // PATCH /api/campaigns/:id
 func handleUpdateCampaign(c *gin.Context) {
 	var req UpdateCampaignRequest
