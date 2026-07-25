@@ -229,7 +229,7 @@ export default function ProfilePage() {
             {user && user.role !== "admin" && (
               <div>
                 <p className="text-muted-foreground">Trust score</p>
-                <p className={user.trustScore < 30 ? "text-destructive" : user.trustScore < 60 ? "text-yellow-400" : "text-green-400"}>
+                <p className={user.trustScore < 30 ? "text-destructive" : user.trustScore < 60 ? "text-yellow-600" : "text-green-600"}>
                   {user.trustScore} / 100
                 </p>
               </div>
@@ -389,7 +389,7 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div className="rounded-md bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-400">
+            <div className="rounded-md bg-yellow-50 border border-yellow-300 p-3 text-sm text-yellow-800">
               Your account requires admin verification. An admin will visit your profile and confirm your stats within 24 hours.
             </div>
           </div>

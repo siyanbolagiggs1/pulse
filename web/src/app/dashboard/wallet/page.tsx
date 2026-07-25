@@ -86,11 +86,11 @@ export default function WalletPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">Available</p>
-          <p className="text-3xl font-bold text-green-400">{formatCurrency(wallet?.availableBalance ?? 0)}</p>
+          <p className="text-3xl font-bold text-green-600">{formatCurrency(wallet?.availableBalance ?? 0)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">Pending</p>
-          <p className="text-3xl font-bold text-yellow-400">{formatCurrency(wallet?.pendingBalance ?? 0)}</p>
+          <p className="text-3xl font-bold text-yellow-600">{formatCurrency(wallet?.pendingBalance ?? 0)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">Total Earned</p>
@@ -152,7 +152,7 @@ export default function WalletPage() {
                 <p className="text-sm">{tx.description}</p>
                 <p className="text-xs text-muted-foreground">{format(new Date(tx.createdAt), "MMM d, yyyy · HH:mm")}</p>
               </div>
-              <p className={`text-sm font-medium ${tx.amount >= 0 ? "text-green-400" : "text-red-400"}`}>
+              <p className={`text-sm font-medium ${tx.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {tx.amount >= 0 ? "+" : ""}{formatCurrency(tx.amount)}
               </p>
             </div>

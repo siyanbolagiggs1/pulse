@@ -68,7 +68,7 @@ export default function DashboardPage() {
           <CardContent>
             {loading ? (
               <div className="flex gap-3 overflow-x-auto pb-1">
-                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-44 w-56 shrink-0 rounded-lg" />)}
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-56 shrink-0 rounded-lg" />)}
               </div>
             ) : myCampaigns.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
@@ -82,6 +82,7 @@ export default function DashboardPage() {
                     key={c.id}
                     campaign={c}
                     href={`/dashboard/campaigns/${c.id}`}
+                    showPreview={false}
                     footer={
                       <>
                         <span className="text-xs text-muted-foreground">
@@ -142,11 +143,11 @@ export default function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-4">
           <Card><CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Available</p>
-            <p className="text-2xl font-bold text-green-400">{formatCurrency(wallet?.availableBalance ?? 0)}</p>
+            <p className="text-2xl font-bold text-green-600">{formatCurrency(wallet?.availableBalance ?? 0)}</p>
           </CardContent></Card>
           <Card><CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Pending</p>
-            <p className="text-2xl font-bold text-yellow-400">{formatCurrency(wallet?.pendingBalance ?? 0)}</p>
+            <p className="text-2xl font-bold text-yellow-600">{formatCurrency(wallet?.pendingBalance ?? 0)}</p>
           </CardContent></Card>
           <Card><CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Total Earned</p>

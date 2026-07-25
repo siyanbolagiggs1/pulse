@@ -88,7 +88,7 @@ export default function MarketplacePage() {
               </CardHeader>
               <CardContent className="flex-1 space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-green-400">Up to {formatCurrency(c.baseRepostRate * 1.5)}</span>
+                  <span className="font-semibold text-green-600">Up to {formatCurrency(c.baseRepostRate * 1.5)}</span>
                   <span className="text-muted-foreground">base {formatCurrency(c.baseRepostRate)}</span>
                 </div>
                 <div className="flex gap-3 text-xs text-muted-foreground">

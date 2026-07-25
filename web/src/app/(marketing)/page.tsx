@@ -6,6 +6,8 @@ import { authApi } from "@/lib/api";
 import { isJwtExpired, attemptRefresh } from "@/lib/refresh";
 import { Hero } from "@/components/marketing/Hero";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { GettingStarted } from "@/components/marketing/GettingStarted";
+import { WhyPulse } from "@/components/marketing/WhyPulse";
 
 export default function Home() {
   const router = useRouter();
@@ -40,6 +42,8 @@ export default function Home() {
     <main>
       <Hero />
       <HowItWorks />
+      <GettingStarted />
+      <WhyPulse />
     </main>
   );
 }

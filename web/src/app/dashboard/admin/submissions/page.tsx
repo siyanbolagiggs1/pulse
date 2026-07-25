@@ -106,7 +106,7 @@ export default function AdminSubmissionsPage() {
                   <TableRow key={s.id}>
                     <TableCell><Badge variant={statusVariant[s.status] ?? "secondary"}>{s.status}</Badge></TableCell>
                     <TableCell>{formatCurrency(s.finalAmount)}</TableCell>
-                    <TableCell className="text-green-400">{formatCurrency(s.promoterEarning)}</TableCell>
+                    <TableCell className="text-green-600">{formatCurrency(s.promoterEarning)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{format(new Date(s.submittedAt), "MMM d, yyyy")}</TableCell>
                     <TableCell>
                       <a href={s.repostUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">Post</a>
@@ -119,11 +119,11 @@ export default function AdminSubmissionsPage() {
                     <TableCell>
                       {s.status === "pending" && (
                         <div className="flex gap-2">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-400 hover:text-green-300"
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
                             onClick={() => handleApprove(s.id)} disabled={acting === s.id}>
                             <Check className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-red-400"
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-red-700"
                             onClick={() => { setRejectId(s.id); setReason(""); }} disabled={acting === s.id}>
                             <X className="h-4 w-4" />
                           </Button>

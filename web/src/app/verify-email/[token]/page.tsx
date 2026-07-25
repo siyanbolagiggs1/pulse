@@ -35,7 +35,7 @@ export default function VerifyEmailPage() {
         )}
         {status === "success" && (
           <>
-            <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
+            <CheckCircle className="mx-auto h-12 w-12 text-green-600" />
             <h2 className="text-2xl font-bold">Email Verified!</h2>
             <p className="text-muted-foreground">Your account is now active. Redirecting to login…</p>
             <Button asChild><Link href="/login">Go to Login</Link></Button>

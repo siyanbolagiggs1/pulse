@@ -41,7 +41,7 @@ export default function TopupCallbackPage() {
         )}
         {status === "success" && (
           <>
-            <CheckCircle className="mx-auto h-12 w-12 text-green-400" />
+            <CheckCircle className="mx-auto h-12 w-12 text-green-600" />
             <h2 className="text-2xl font-bold">Payment Successful!</h2>
             <p className="text-muted-foreground">Your wallet has been topped up. Redirecting…</p>
             <Button asChild><Link href="/dashboard/wallet">Go to Wallet</Link></Button>

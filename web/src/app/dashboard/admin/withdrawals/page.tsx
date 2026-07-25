@@ -129,11 +129,11 @@ export default function AdminWithdrawalsPage() {
                     <TableCell>
                       {w.status === "pending" && (
                         <div className="flex gap-2">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-400 hover:text-green-300"
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700"
                             onClick={() => handleApprove(w.id)} disabled={acting === w.id}>
                             <Check className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-red-400"
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-red-700"
                             onClick={() => { setRejectTarget(w.id); setRejectReason(""); }} disabled={acting === w.id}>
                             <X className="h-4 w-4" />
                           </Button>

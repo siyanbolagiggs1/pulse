@@ -37,13 +37,13 @@ export default function AdminDashboardPage() {
   if (!stats) return null;
 
   const cards = [
-    { label: "Total Users", value: stats.users.total, sub: `${stats.users.suspended} suspended`, icon: Users, color: "text-blue-400" },
-    { label: "Users", value: stats.users.users, sub: "registered", icon: Users, color: "text-purple-400" },
-    { label: "Active Campaigns", value: stats.campaigns.active, sub: `${stats.campaigns.total} total`, icon: Megaphone, color: "text-yellow-400" },
-    { label: "Pending Submissions", value: stats.submissions.pending, sub: `${stats.submissions.total} total`, icon: FileCheck, color: "text-orange-400" },
-    { label: "Total Revenue", value: formatCurrency(stats.financials.totalCommission), sub: "platform commission", icon: DollarSign, color: "text-green-400" },
-    { label: "Total Payouts", value: formatCurrency(stats.financials.totalPayouts), sub: "to users", icon: DollarSign, color: "text-teal-400" },
-    { label: "Pending Withdrawals", value: formatCurrency(stats.financials.pendingWithdrawals), sub: "awaiting approval", icon: DollarSign, color: "text-red-400" },
+    { label: "Total Users", value: stats.users.total, sub: `${stats.users.suspended} suspended`, icon: Users, color: "text-blue-600" },
+    { label: "Users", value: stats.users.users, sub: "registered", icon: Users, color: "text-purple-600" },
+    { label: "Active Campaigns", value: stats.campaigns.active, sub: `${stats.campaigns.total} total`, icon: Megaphone, color: "text-yellow-600" },
+    { label: "Pending Submissions", value: stats.submissions.pending, sub: `${stats.submissions.total} total`, icon: FileCheck, color: "text-orange-600" },
+    { label: "Total Revenue", value: formatCurrency(stats.financials.totalCommission), sub: "platform commission", icon: DollarSign, color: "text-green-600" },
+    { label: "Total Payouts", value: formatCurrency(stats.financials.totalPayouts), sub: "to users", icon: DollarSign, color: "text-teal-600" },
+    { label: "Pending Withdrawals", value: formatCurrency(stats.financials.pendingWithdrawals), sub: "awaiting approval", icon: DollarSign, color: "text-red-600" },
   ];
 
   return (
@@ -73,9 +73,9 @@ export default function AdminDashboardPage() {
           <CardHeader><CardTitle>Submission Breakdown</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {[
-              { label: "Approved", value: stats.submissions.approved, color: "bg-green-400" },
-              { label: "Pending", value: stats.submissions.pending, color: "bg-yellow-400" },
-              { label: "Rejected", value: stats.submissions.rejected, color: "bg-red-400" },
+              { label: "Approved", value: stats.submissions.approved, color: "bg-green-500" },
+              { label: "Pending", value: stats.submissions.pending, color: "bg-yellow-500" },
+              { label: "Rejected", value: stats.submissions.rejected, color: "bg-red-500" },
             ].map(({ label, value, color }) => {
               const pct = stats.submissions.total ? Math.round((value / stats.submissions.total) * 100) : 0;
               return (
@@ -97,8 +97,8 @@ export default function AdminDashboardPage() {
           <CardHeader><CardTitle>Campaign Breakdown</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {[
-              { label: "Active", value: stats.campaigns.active, color: "bg-green-400" },
-              { label: "Completed", value: stats.campaigns.completed, color: "bg-blue-400" },
+              { label: "Active", value: stats.campaigns.active, color: "bg-green-500" },
+              { label: "Completed", value: stats.campaigns.completed, color: "bg-blue-500" },
             ].map(({ label, value, color }) => {
               const pct = stats.campaigns.total ? Math.round((value / stats.campaigns.total) * 100) : 0;
               return (

@@ -133,7 +133,7 @@ export default function AdminUsersPage() {
                       <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
                       <TableCell><Badge variant="secondary" className="capitalize">{u.role}</Badge></TableCell>
                       <TableCell>
-                        <span className={u.trustScore < 30 ? "text-destructive" : u.trustScore < 60 ? "text-yellow-400" : "text-green-400"}>
+                        <span className={u.trustScore < 30 ? "text-destructive" : u.trustScore < 60 ? "text-yellow-600" : "text-green-600"}>
                           {u.trustScore}
                         </span>
                       </TableCell>

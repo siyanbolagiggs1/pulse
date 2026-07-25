@@ -135,7 +135,7 @@ export default function AdminSocialAccountsPage() {
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => openApprove(a)}>
-                      <CheckCircle className="mr-1 h-4 w-4 text-green-400" />Approve
+                      <CheckCircle className="mr-1 h-4 w-4 text-green-600" />Approve
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => openReject(a)}>
                       <XCircle className="mr-1 h-4 w-4 text-destructive" />Reject

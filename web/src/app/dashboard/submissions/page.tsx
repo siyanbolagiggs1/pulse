@@ -98,7 +98,7 @@ export default function SubmissionsPage() {
                     <TableRow key={s.id}>
                       <TableCell><Badge variant={statusVariant[s.status] ?? "secondary"}>{s.status}</Badge></TableCell>
                       <TableCell>{formatCurrency(s.finalAmount)}</TableCell>
-                      <TableCell className="text-green-400">{formatCurrency(s.promoterEarning)}</TableCell>
+                      <TableCell className="text-green-600">{formatCurrency(s.promoterEarning)}</TableCell>
                       <TableCell className="text-muted-foreground">{format(new Date(s.submittedAt), "MMM d, yyyy")}</TableCell>
                       <TableCell>
                         <a href={s.repostUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm">View</a>
