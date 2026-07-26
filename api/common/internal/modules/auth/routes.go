@@ -21,5 +21,6 @@ func RegisterRoutes(rg *gin.RouterGroup) {
 
 		// Protected — requires valid access token
 		auth.GET("/me", middleware.RequireAuth(), handleMe)
+		auth.POST("/accept-terms", middleware.RequireAuth(), handleAcceptTerms)
 	}
 }

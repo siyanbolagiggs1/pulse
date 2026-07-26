@@ -66,6 +66,9 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 		TrustScore:       50,
 		Badges:           []models.VerificationBadge{},
 		EmailVerifyToken: verifyToken,
+		// Frontend requires ticking the Terms/Privacy checkbox before this
+		// endpoint can be called at all, so acceptance is recorded immediately.
+		TermsAcceptedVersion: models.CurrentTermsVersion,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
@@ -249,6 +252,25 @@ func verifyEmail(ctx context.Context, token string) error {
 	return nil
 }
 
+// acceptTerms records that the user has accepted the current Terms/Privacy
+// version — used for the acceptance gate shown to accounts created before
+// this version (or an earlier one) existed.
+func acceptTerms(ctx context.Context, userID string) error {
+	objID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return ErrInvalidToken
+	}
+
+	_, err = database.GetCollection(models.UsersCollection).UpdateOne(ctx,
+		bson.M{"_id": objID},
+		bson.M{"$set": bson.M{
+			"termsAcceptedVersion": models.CurrentTermsVersion,
+			"updatedAt":            time.Now().UTC(),
+		}},
+	)
+	return err
+}
+
 // resendVerification issues a fresh verification token and re-sends the
 // email. Always succeeds silently for a nonexistent or already-verified
 // account — same non-enumeration pattern as forgotPassword — so the caller
@@ -423,6 +445,9 @@ func googleSignIn(ctx context.Context, credential string) (*models.User, string,
 			TrustScore:      50,
 			Badges:          []models.VerificationBadge{},
 			Avatar:          info.Picture,
+			// Frontend requires ticking the Terms/Privacy checkbox before the
+			// Google button is usable at all, so acceptance is recorded immediately.
+			TermsAcceptedVersion: models.CurrentTermsVersion,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}

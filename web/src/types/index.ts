@@ -26,6 +26,7 @@ export interface User {
   trustScore: number;
   badges: string[];
   bankAccount?: BankAccount;
+  termsAccepted: boolean;
   createdAt: string;
   updatedAt: string;
 }

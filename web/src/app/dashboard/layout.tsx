@@ -8,6 +8,7 @@ import { Sidebar, MobileSidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { FloatingMessageButton } from "@/components/layout/floating-message-button";
 import { RealtimeProvider } from "@/providers/realtime";
+import { TermsGate } from "@/components/shared/TermsGate";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -74,6 +75,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (!user) return null;
+
+  if (!user.termsAccepted) return <TermsGate />;
 
   return (
     <RealtimeProvider>

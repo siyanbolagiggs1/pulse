@@ -13,6 +13,12 @@ const (
 	RoleUser  Role = "user"
 )
 
+// CurrentTermsVersion identifies the Terms/Privacy version users must accept.
+// Bump this (e.g. to a new date) whenever the Terms or Privacy Policy change
+// materially — anyone who already accepted an older version will be shown
+// the acceptance gate again on their next login.
+const CurrentTermsVersion = "2026-07-26"
+
 type VerificationBadge string
 
 const (
@@ -46,6 +52,7 @@ type User struct {
 	TrustScore      float64             `bson:"trustScore"          json:"trustScore"`
 	Badges          []VerificationBadge `bson:"badges"              json:"badges"`
 	BankAccount     *BankAccount        `bson:"bankAccount,omitempty" json:"bankAccount,omitempty"`
+	TermsAcceptedVersion string         `bson:"termsAcceptedVersion" json:"-"`
 
 	RefreshToken        string    `bson:"refreshToken"         json:"-"`
 	EmailVerifyToken    string    `bson:"emailVerifyToken"     json:"-"`

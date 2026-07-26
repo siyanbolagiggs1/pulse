@@ -62,6 +62,7 @@ type UserResponse struct {
 	TrustScore      float64           `json:"trustScore"`
 	Badges          []models.VerificationBadge `json:"badges"`
 	BankAccount     *BankAccountResponse        `json:"bankAccount,omitempty"`
+	TermsAccepted   bool              `json:"termsAccepted"`
 	CreatedAt       string            `json:"createdAt"`
 }
 
@@ -86,6 +87,7 @@ func toUserResponse(u *models.User) UserResponse {
 		TrustScore:      u.TrustScore,
 		Badges:          badges,
 		BankAccount:     toBankAccountResponse(u.BankAccount),
+		TermsAccepted:   u.TermsAcceptedVersion == models.CurrentTermsVersion,
 		CreatedAt:       u.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }

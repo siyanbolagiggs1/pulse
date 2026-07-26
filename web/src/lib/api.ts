@@ -33,6 +33,7 @@ export const authApi = {
   googleSignIn: (credential: string) =>
     api.post<{ success: boolean; data: { user: User; accessToken: string } }>("/auth/google", { credential }),
   resendVerification: (email: string) => api.post("/auth/resend-verification", { email }),
+  acceptTerms: () => api.post("/auth/accept-terms"),
   forgotPassword: (email: string) => api.post("/auth/forgot-password", { email }),
   resetPassword: (token: string, password: string) =>
     api.post(`/auth/reset-password/${token}`, { password }),

@@ -126,6 +126,16 @@ func handleVerifyEmail(c *gin.Context) {
 	utils.OK(c, http.StatusOK, "Email verified. You can now log in.", nil)
 }
 
+// POST /api/auth/accept-terms  (requires auth)
+func handleAcceptTerms(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if err := acceptTerms(c.Request.Context(), userID); err != nil {
+		utils.Fail(c, http.StatusInternalServerError, "Failed to record acceptance")
+		return
+	}
+	utils.OK(c, http.StatusOK, "Terms accepted", nil)
+}
+
 // POST /api/auth/resend-verification
 func handleResendVerification(c *gin.Context) {
 	var req ResendVerificationRequest
