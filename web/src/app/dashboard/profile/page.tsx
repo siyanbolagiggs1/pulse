@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { usersApi } from "@/lib/api";
@@ -323,6 +324,14 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle>Legal</CardTitle></CardHeader>
+        <CardContent className="flex gap-4 text-sm">
+          <Link href="/terms" target="_blank" className="text-primary hover:underline">Terms and Conditions</Link>
+          <Link href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>
+        </CardContent>
+      </Card>
 
       <Card className="border-destructive/40">
         <CardHeader><CardTitle className="text-destructive">Danger Zone</CardTitle></CardHeader>
