@@ -287,7 +287,6 @@ func approveSubmission(ctx context.Context, adminID, submissionID string) (*mode
 	}
 
 	now := time.Now().UTC()
-	payoutRelease := now.Add(48 * time.Hour)
 
 	// Update submission.
 	if _, err := database.GetCollection(models.SubmissionsCollection).UpdateOne(ctx,
@@ -296,7 +295,8 @@ func approveSubmission(ctx context.Context, adminID, submissionID string) (*mode
 			"status":           models.SubmissionStatusApproved,
 			"reviewedBy":       adminObjID,
 			"reviewedAt":       now,
-			"payoutReleasedAt": payoutRelease,
+			"payoutReleased":   true,
+			"payoutReleasedAt": now,
 			"updatedAt":        now,
 		}},
 	); err != nil {
@@ -321,11 +321,11 @@ func approveSubmission(ctx context.Context, adminID, submissionID string) (*mode
 		},
 	)
 
-	// Promoter: pendingBalance += promoterEarning (holds for 48h).
+	// Promoter: availableBalance += promoterEarning, credited immediately.
 	_, _ = database.GetCollection(models.WalletsCollection).UpdateOne(ctx,
 		bson.M{"userId": s.PromoterID},
 		bson.M{
-			"$inc": bson.M{"pendingBalance": s.PromoterEarning},
+			"$inc": bson.M{"availableBalance": s.PromoterEarning, "totalEarned": s.PromoterEarning},
 			"$set": bson.M{"updatedAt": now},
 		},
 	)
@@ -337,11 +337,11 @@ func approveSubmission(ctx context.Context, adminID, submissionID string) (*mode
 		tx := models.Transaction{
 			WalletID:     promoterWallet.ID,
 			UserID:       s.PromoterID,
-			Type:         models.TxPayoutPending,
+			Type:         models.TxPayoutReleased,
 			Amount:       s.PromoterEarning,
-			BalanceAfter: promoterWallet.PendingBalance + s.PromoterEarning,
+			BalanceAfter: promoterWallet.AvailableBalance,
 			ReferenceID:  s.ID.Hex(),
-			Description:  fmt.Sprintf("Payout pending (releases %s)", payoutRelease.Format("2006-01-02")),
+			Description:  "Payout released",
 			CreatedAt:    now,
 		}
 		_, _ = database.GetCollection(models.TransactionsCollection).InsertOne(ctx, tx)
@@ -358,7 +358,7 @@ func approveSubmission(ctx context.Context, adminID, submissionID string) (*mode
 
 	go notifications.Send(context.Background(), s.PromoterID, models.NotifSubmissionApproved,
 		"Submission Approved",
-		fmt.Sprintf("Your submission was approved. %.2f USD is pending release in 48h.", s.PromoterEarning),
+		fmt.Sprintf("Your submission was approved. %.2f USD has been added to your wallet.", s.PromoterEarning),
 		map[string]interface{}{"submissionId": s.ID.Hex(), "amount": s.PromoterEarning})
 
 	// Re-fetch updated submission.

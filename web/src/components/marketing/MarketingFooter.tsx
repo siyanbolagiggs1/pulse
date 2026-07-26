@@ -9,9 +9,11 @@ export function MarketingFooter() {
             <p className="text-lg font-bold text-primary">Pulse</p>
             <p className="text-sm text-muted-foreground">Community-powered social promotion</p>
           </div>
-          <nav className="flex items-center gap-6">
+          <nav className="flex flex-wrap items-center justify-center gap-6">
             <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground">Sign in</Link>
             <Link href="/register" className="text-sm text-muted-foreground hover:text-foreground">Get started</Link>
+            <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground">Terms</Link>
+            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground">Privacy</Link>
           </nav>
         </div>
         <p className="mt-6 text-center text-xs text-muted-foreground sm:text-left">

@@ -18,6 +18,9 @@ const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  agreeToTerms: z.literal(true, {
+    errorMap: () => ({ message: "You must agree to the Terms and Privacy Policy to continue" }),
+  }),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -27,9 +30,10 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+  const agreedToTerms = watch("agreeToTerms");
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -82,6 +86,22 @@ export default function RegisterPage() {
             {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
 
+          <div className="flex items-start gap-2">
+            <input
+              id="agreeToTerms"
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+              {...register("agreeToTerms")}
+            />
+            <Label htmlFor="agreeToTerms" className="text-sm font-normal text-muted-foreground">
+              I agree to Pulse's{" "}
+              <Link href="/terms" target="_blank" className="text-primary hover:underline">Terms and Conditions</Link>{" "}
+              and{" "}
+              <Link href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>
+            </Label>
+          </div>
+          {errors.agreeToTerms && <p className="text-xs text-destructive">{errors.agreeToTerms.message}</p>}
+
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Creating account…" : "Create account"}
           </Button>
@@ -96,15 +116,20 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="flex justify-center">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={() => toast({ title: "Google sign-up failed", variant: "destructive" })}
-            theme="filled_black"
-            shape="rectangular"
-            width="100%"
-          />
+        <div className={agreedToTerms ? "" : "pointer-events-none opacity-50"}>
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => toast({ title: "Google sign-up failed", variant: "destructive" })}
+              theme="filled_black"
+              shape="rectangular"
+              width="100%"
+            />
+          </div>
         </div>
+        {!agreedToTerms && (
+          <p className="mt-2 text-center text-xs text-muted-foreground">Check the box above to sign up with Google</p>
+        )}
         {googleLoading && <p className="mt-2 text-center text-xs text-muted-foreground">Signing up…</p>}
 
         <p className="mt-4 text-center text-sm text-muted-foreground">

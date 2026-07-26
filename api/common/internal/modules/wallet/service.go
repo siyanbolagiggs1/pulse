@@ -401,16 +401,19 @@ func getWithdrawals(ctx context.Context, userID string, page, limit int) ([]mode
 	return withdrawals, total, nil
 }
 
-// ── 48h payout release ───────────────────────────────────────
+// ── Legacy pending-payout flush ─────────────────────────────────
+// Approvals now credit availableBalance immediately (no more hold), so this
+// only ever finds anything for submissions approved before that change —
+// it flushes their still-held pendingBalance into availableBalance the next
+// time the promoter's wallet is fetched, with no wait.
 
 func releaseMaturePending(ctx context.Context, promoterObjID bson.ObjectID) error {
 	now := time.Now().UTC()
 
 	cursor, err := database.GetCollection(models.SubmissionsCollection).Find(ctx, bson.M{
-		"promoterId":       promoterObjID,
-		"status":           models.SubmissionStatusApproved,
-		"payoutReleased":   false,
-		"payoutReleasedAt": bson.M{"$lte": now},
+		"promoterId":     promoterObjID,
+		"status":         models.SubmissionStatusApproved,
+		"payoutReleased": false,
 	})
 	if err != nil {
 		return err
