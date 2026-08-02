@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulse-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pulse-api
+  template:
+    metadata:
+      labels:
+        app: pulse-api
+    spec:
+      # api/common's ConnectMongo() calls log.Fatal on failure, so make sure
+      # mongo/redis are actually reachable before the main container starts —
+      # otherwise it just CrashLoopBackOffs until they happen to be ready.
+      initContainers:
+        - name: wait-for-deps
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mongo 27017; do echo waiting for mongo; sleep 1; done
+              until nc -z redis 6379; do echo waiting for redis; sleep 1; done
+      containers:
+        - name: pulse-api
+          image: pulse-api:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: PORT
+              value: "5000"
+            - name: NODE_ENV
+              value: development
+            - name: MONGODB_URI
+              value: "mongodb://admin:secret@mongo:27017/pulse?authSource=admin"
+            - name: DB_NAME
+              value: pulse
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: JWT_ACCESS_SECRET
+              value: "dev-access-secret-replace-before-prod-deploy"
+            - name: JWT_REFRESH_SECRET
+              value: "dev-refresh-secret-replace-before-prod-deploy"
+            - name: JWT_ACCESS_EXPIRY_MINUTES
+              value: "15"
+            - name: JWT_REFRESH_EXPIRY_DAYS
+              value: "7"
+            - name: CLIENT_URL
+              value: "*"
+            - name: UPLOAD_DIR
+              value: "./uploads"
+            - name: PLATFORM_COMMISSION_RATE
+              value: "0.20"
+          # Deliberately low so a handful of concurrent load-generator pods
+          # push average CPU utilization past the HPA's 50% target quickly.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 15
