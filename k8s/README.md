@@ -59,3 +59,10 @@ kind delete cluster --name pulse
   (50m request) so a handful of load-generator replicas is enough to trip
   the 50% utilization target — this is a demo tuning, not a production
   sizing recommendation.
+- `pulse-api`'s init container blocks until mongo is actually reachable, not
+  just `Running`. On a cold cluster, mongo's entrypoint boots a temporary
+  loopback-only instance to create the root user before restarting bound to
+  `0.0.0.0` — combined with the first-time image pull, this can take several
+  minutes. `bootstrap.sh` waits up to 450s for the `pulse-api` rollout to
+  cover that; it's a one-time cost per cluster (fast on re-runs since images
+  and mongo's init state are already cached).

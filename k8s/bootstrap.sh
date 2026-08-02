@@ -40,14 +40,12 @@ echo "==> Applying mongo, redis, pulse-api..."
 kubectl apply -f k8s/mongo.yaml -f k8s/redis.yaml -f k8s/api-deployment.yaml -f k8s/api-service.yaml
 
 echo "==> Waiting for pulse-api to be ready..."
-kubectl rollout status deployment/pulse-api --timeout=180s
+kubectl rollout status deployment/pulse-api --timeout=450s
 
 echo "==> Installing metrics-server..."
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
-# kind's kubelet serving certs aren't signed for the metrics-server's default
-# verification, and the demo doesn't need a snappier-than-default scrape
-# interval to be watchable, so shorten it a bit anyway for recording.
+
 kubectl patch deployment metrics-server -n kube-system --type=json -p='[
   {"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"},
   {"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--metric-resolution=15s"}
