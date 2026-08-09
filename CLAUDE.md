@@ -26,7 +26,7 @@ A social engagement marketplace MVP.
 | Payments | Paystack (Transactions API for top-ups, Transfers API for payouts) |
 | Real-time | SSE — Server-Sent Events (replaces Socket.IO; Go-native, sufficient for push notifications) |
 | Email | Go SMTP (net/smtp or gomail) |
-| Infrastructure | Docker + Docker Compose |
+| Infrastructure | Docker + Docker Compose (dev); Railway (API) + Vercel (Web) in production |
 
 ---
 
@@ -34,9 +34,9 @@ A social engagement marketplace MVP.
 
 ```
 /pulse
-├── apps/
-│   ├── web/          # Next.js 14 frontend
-│   └── api/          # Node.js/Express backend
+├── web/              # Next.js frontend
+├── api/
+│   └── common/       # Go/Gin backend
 ├── docker-compose.yml
 ├── .env.example
 └── CLAUDE.md
@@ -104,7 +104,7 @@ Trust score: 0–100, starts at 50
 
 ## Environment Variables
 
-See `apps/api/.env.example` and `apps/web/.env.example` once created.
+See `api/common/.env.example` and `web/.env.example` once created.
 
 ---
 
@@ -121,24 +121,43 @@ See `apps/api/.env.example` and `apps/web/.env.example` once created.
 | 7 | Influence scoring service + fraud detection service | ✅ Complete |
 | 8 | Real-time notifications (SSE) | ✅ Complete |
 | 9 | Frontend: Next.js pages and dashboards | ✅ Complete |
-| 10 | Production deploy config (CI/CD, Fly.io, Vercel, VPS) | ✅ Complete |
+| 10 | Production deploy config (CI/CD, Vercel, VPS) — API host later moved from Fly.io to Railway, see note below | ✅ Complete |
 | 11 | Polish + missing UX (profile, social accounts, campaign edit, pagination, mobile nav) | ✅ Complete |
 | 12 | Real Paystack payouts: bank account verification, Transfer API, admin-approval-triggered transfers, async webhook completion | ✅ Complete |
+| 13 | Go-live prep: live Paystack keys, Railway webhook/callback wiring, frontend USD→NGN currency fix | ✅ Complete |
 
 ---
 
 ## Current Status
 
-**Last session:** Session 12 — Phase 12 complete. Replaced the dummy withdrawal system (admin approval used to just flip a status with no money movement) with real Paystack Transfers. See "Phase 12 — Files Created" below.
+**Last session:** Session 13 — Phase 13 complete. Pulse is live in production (API on Railway at `https://pulse-production-216c.up.railway.app`, web on Vercel). Switched `PAYSTACK_SECRET_KEY` to a live key and removed the unused `PAYSTACK_PUBLIC_KEY` from `api/common/.env` (confirmed nothing in the Go code reads the public key — Pulse's top-up flow is server-side `Initialize` + redirect, not the client-side Paystack Inline/Popup SDK, so no frontend Paystack key exists or is needed). Also fixed the frontend hard-coding `USD`/`$` everywhere in currency display despite the backend always having been NGN. See "Phase 13 — Files Changed" below.
 
-**Next action:** Requires the user's own Paystack test credentials to fully verify the `InitiateTransfer` → webhook → `completed` path end-to-end (not something that can be faked locally) — run one real test withdrawal through once test keys with Transfers enabled + OTP disabled are available. Otherwise: E2E tests (Playwright), campaign analytics charts, or additional hardening.
+**Next action:** Confirm the Paystack dashboard's Live Webhook URL is set to `https://pulse-production-216c.up.railway.app/api/wallet/topup/webhook` (required — no per-request override exists for webhooks) and the Live Callback URL fallback is set to `https://<vercel-domain>/dashboard/wallet/topup/callback`. Then run one real top-up and one real withdrawal end-to-end to confirm the live `InitiateTransfer` → webhook → `completed` path works. Otherwise: E2E tests (Playwright), campaign analytics charts, or additional hardening.
 
 ---
+
+## Phase 13 — Files Changed
+
+```
+api/common/.env                                 PAYSTACK_SECRET_KEY switched to a live sk_live_ key; PAYSTACK_PUBLIC_KEY removed (unused — config.go defaults it to "" and nothing else reads it)
+
+web/src/
+  lib/utils.ts                                formatCurrency default changed from "USD"/en-US to "NGN"/en-NG (₦) — every call site omits the currency arg, so this one change fixes display everywhere
+  app/dashboard/wallet/page.tsx                Replaced hard-coded "$"/"USD" strings in labels and min-amount toasts with ₦/NGN
+  app/dashboard/campaigns/new/page.tsx         Zod validation messages ("Minimum budget/payout is $...") changed to ₦
+  app/dashboard/campaigns/[id]/edit/page.tsx   Same zod message fix as campaigns/new
+```
+
+Key behaviours / findings:
+- Deploy target actually is Railway, not Fly.io — `railway.toml` + `Dockerfile.railway` exist at the repo root; `fly.toml` referenced in the Phase 10 log below no longer exists in the repo. README.md already reflected Railway; this file didn't (now fixed above).
+- Paystack's Live Callback URL dashboard field is only a fallback default — Pulse always sends its own per-transaction `callback_url` in `Initialize` (`wallet/service.go:140`), which takes precedence.
+- Paystack's Live Webhook URL has no per-request override — it's account-wide, so it must be set correctly in the dashboard or `charge.success`/`transfer.success`/`transfer.failed` events never reach `handlePaystackWebhook`.
+- Switching `PAYSTACK_CURRENCY` itself (not just display) to something other than NGN was considered and rejected: any existing wallet/campaign amounts in the DB would be silently reinterpreted at the new currency's face value (no conversion), and `ListBanks`/`ResolveAccount` are NGN-bank-list-specific — not something to flip without a data migration plan.
 
 ## Phase 12 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/services/paystack/paystack.go       Added: ListBanks, ResolveAccount, CreateTransferRecipient, InitiateTransfer (+ shared doJSON[T] helper alongside the existing Initialize/Verify)
   internal/models/user.go                      Added BankAccount struct (bankCode, bankName, accountNumber, accountName, recipientCode) + BankAccount *BankAccount field on User
 
@@ -158,7 +177,7 @@ apps/api/
 
   .env.example                                  Documented the two Paystack dashboard prerequisites for payouts to work (disable OTP for transfers, fund the balance)
 
-apps/web/src/
+web/src/
   types/index.ts                                Added BankAccount interface + bankAccount? field on User
   lib/api.ts                                    usersApi.listBanks, usersApi.setBankAccount
 
@@ -180,7 +199,7 @@ Key behaviours:
 ## Phase 11 — Files Created
 
 ```
-apps/web/src/
+web/src/
   components/ui/sheet.tsx               Sheet/drawer built on @radix-ui/react-dialog — slides from left; used for mobile sidebar
   components/ui/pagination.tsx          Reusable Pagination component (prev/next + numbered pages with ellipsis)
 
@@ -213,13 +232,13 @@ Key behaviours:
 Caddyfile                                     Caddy reverse proxy — /api/* → Go, /* → Next.js; automatic HTTPS via Let's Encrypt; security headers
 docker-compose.prod.yml                       Production compose: no exposed DB ports, Caddy for HTTPS, Redis password, web build args
 
-apps/api/
+api/common/
   Dockerfile                                  Updated: CGO_ENABLED=0 GOOS=linux -ldflags="-s -w", non-root user, HEALTHCHECK
   .dockerignore                               Excludes .env, uploads/, .git
   fly.toml                                    Fly.io app config: iad region, 256MB shared VM, persistent volume for uploads, health check on /health
   .env.example                                Updated: NODE_ENV production comment, REDIS_PASSWORD, CLIENT_URL prod notes
 
-apps/web/
+web/
   Dockerfile                                  Updated: NEXT_TELEMETRY_DISABLED=1, ARG for build-time NEXT_PUBLIC_* env vars
   .dockerignore                               Excludes node_modules/, .next/, .env*
   vercel.json                                 Vercel config: framework=nextjs, security headers (X-Frame-Options, nosniff, Referrer-Policy)
@@ -233,7 +252,7 @@ Key behaviours:
 - API binary shrinks ~35% from `-ldflags="-s -w"` (strips DWARF debug info + symbol table); static binary via `CGO_ENABLED=0` runs in scratch-compatible environments
 - Non-root user (`pulse`) in API container — image fails to start if `/app/uploads` isn't chowned (handled in Dockerfile)
 - Caddy automatically provisions and renews Let's Encrypt certs on first start — zero cert management
-- `docker-compose.prod.yml` uses `--env-file apps/api/.env.prod` so secrets never touch `docker-compose.yml` itself
+- `docker-compose.prod.yml` uses `--env-file api/common/.env.prod` so secrets never touch `docker-compose.yml` itself
 - Web build args (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`) baked into Next.js static bundle at image build time — set correct values before `docker-compose ... up --build`
 - GitHub Actions CI caches Go modules (by `go.sum`) and npm packages (by `package-lock.json`) to keep runs under 2 min
 - Deploy workflow uses `concurrency: group: deploy, cancel-in-progress: false` — queues rather than cancels simultaneous deploys to `main`
@@ -242,7 +261,7 @@ Key behaviours:
 ## Phase 9 — Files Created
 
 ```
-apps/web/src/
+web/src/
   store/auth.ts                                 Zustand auth store (sessionStorage token persistence)
   lib/api.ts                                    All API calls grouped by domain (authApi, usersApi, campaignsApi, submissionsApi, walletApi, adminApi, notificationsApi)
   hooks/use-sse.ts                              SSE hook using fetch + ReadableStream (NOT EventSource — cannot set Authorization header)
@@ -295,7 +314,7 @@ Key behaviours:
 ## Phase 8 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/services/sse/hub.go              SSE Hub singleton (sync.RWMutex map of userID→buffered chan); Register (replaces on reconnect), Unregister (closes channel), Push (non-blocking drop on full)
   internal/modules/notifications/dto.go     NotificationResponse, NotifListMeta (includes unreadCount), toNotificationResponse mapper
   internal/modules/notifications/service.go Send (persist to DB + Push via SSE), getNotifications (paginated + unread count), markAsRead, markAllAsRead
@@ -320,7 +339,7 @@ Key behaviours:
 ## Phase 7 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/services/scoring/scoring.go   ScoreFollowers/Engagement/Age/AudienceQuality/Round2, ComputeCompletionScore (DB query: approved÷total × 20, neutral 10 if no history), ComputeFullScore, RefreshAllAccounts (recomputes + persists all social accounts for a promoter)
   internal/services/fraud/fraud.go       FlagUser (insert FraudFlag + trust -30 + auto-suspend < 20), CheckSubmission (follower ratio < 0.2 → FraudLowFollowerRatio; engagement > 50% with > 10k followers → FraudAbnormalEngagement), CheckAccount (reuses CheckSubmission checks)
 
@@ -340,7 +359,7 @@ Key behaviours:
 ## Phase 6 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/modules/admin/dto.go       PlatformStats (nested: UserStats, CampaignStats, SubmissionStats, FinancialStats), AdminUserResponse, FraudFlagResponse, WithdrawalAdminResponse, query/request types, mappers
   internal/modules/admin/service.go   getPlatformStats (parallel counts + aggregation pipelines), listUsers, getUser, suspendUser, unsuspendUser, listFraudFlags, resolveFraudFlag, listWithdrawals, approveWithdrawal (Stripe Transfer), rejectWithdrawal (refunds wallet)
   internal/modules/admin/handler.go   HTTP handlers for all admin routes
@@ -361,7 +380,7 @@ Key behaviours:
 ## Phase 5 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/modules/wallet/dto.go       WalletResponse, TxResponse, TopupRequest/Response, WithdrawRequest, WithdrawalResponse, ConnectOnboardingResponse, ConnectStatusResponse + mappers
   internal/modules/wallet/service.go   getWallet (lazy 48h release on read), getTransactions, createTopup (Stripe Payment Intent), creditWallet (webhook handler), requestWithdrawal (Stripe Transfer), getWithdrawals, createConnectAccount (Express onboarding), getConnectStatus, releaseMaturePending
   internal/modules/wallet/handler.go   HTTP handlers
@@ -383,7 +402,7 @@ Key behaviours:
 ## Phase 4 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/modules/submissions/dto.go      CreateSubmissionRequest, RejectRequest, SubmissionResponse, SubmissionListQuery, UploadResponse + mapper
   internal/modules/submissions/service.go  createSubmission (eligibility + fraud + rate limit), getSubmissions (role-scoped), getSubmission, approveSubmission (wallet ops + trust score), rejectSubmission (trust score + slot release), saveScreenshot
   internal/modules/submissions/handler.go  HTTP handlers
@@ -403,7 +422,7 @@ Key behaviours:
 ## Phase 3 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/modules/users/dto.go        UpdateProfileRequest, ConnectSocialAccountRequest, UserResponse, SocialAccountResponse, InfluenceScoreResponse + mappers
   internal/modules/users/service.go    getMe, updateProfile, connectSocialAccount, deleteSocialAccount, getInfluenceScore + influence score sub-components
   internal/modules/users/handler.go    HTTP handlers for all user routes
@@ -425,7 +444,7 @@ Also fixed in this session:
 ## Phase 2 — Files Created
 
 ```
-apps/api/
+api/common/
   internal/utils/jwt.go               GenerateAccessToken, GenerateRefreshToken, Validate*
   internal/utils/hash.go              HashPassword, CheckPassword (bcrypt 12 rounds)
   internal/utils/token.go             GenerateSecureToken (crypto/rand hex)
@@ -444,7 +463,7 @@ apps/api/
 ## Phase 1 — Files Created
 
 ```
-apps/api/
+api/common/
   cmd/server/main.go
   internal/config/config.go
   internal/database/mongodb.go
@@ -462,7 +481,7 @@ apps/api/
   go.mod
   .env.example
 
-apps/web/
+web/
   package.json
   tsconfig.json
   tailwind.config.ts
@@ -485,8 +504,53 @@ docker-compose.yml
 ## Known Issues / Decisions Pending
 
 - `go.sum` is committed — `go mod tidy` already run, no action needed
-- `apps/web/node_modules` not installed — run `npm install` inside `apps/web/`
+- `web/node_modules` not installed — run `npm install` inside `web/`
 - Copy `.env.example` → `.env` in both apps before running docker-compose
+
+---
+
+## Local k8s HPA + Load Balancer Demo (`k8s-hpa-demo` branch)
+
+Not part of the phase table above — a separate, self-contained infra demo
+living entirely in `k8s/`, built for a Loom recording of Kubernetes
+autoscaling + load balancing, on a local `kind` cluster inside a Codespace
+(no local Docker needed). Doesn't touch product code except two additive
+changes: a `POD_NAME` downward-API env var and a `pod` field on `/health`.
+
+```
+k8s/
+  bootstrap.sh          One-shot setup: kind cluster (via kind-config.yaml) → nginx Ingress
+                         Controller → build/load pulse-api image → mongo/redis/api/service/ingress →
+                         metrics-server → hpa/load-generator
+  kind-config.yaml       kind cluster config: maps hostPorts 80/443 in, labels the node
+                         ingress-ready=true — both are cluster-creation-time-only settings
+  ingress.yaml            nginx Ingress — the "proper" load balancer sitting in front of the
+                         pulse-api Service, single entrypoint on http://localhost
+  watch-lb.sh             Curls http://localhost/health in a loop, prints which pod answered
+                         (colored per pod) — the visual proof requests are spread across
+                         replicas, not just repeats of the same pod. The "money shot" for the LB.
+  mongo.yaml / redis.yaml / api-deployment.yaml / api-service.yaml / hpa.yaml / load-generator.yaml
+                         Existing HPA demo pieces (api-deployment.yaml now also sets POD_NAME)
+  README.md              Full demo script — 4-terminal layout for the recording
+
+api/common/internal/router/router.go   /health now returns "pod": os.Getenv("POD_NAME")
+```
+
+Key behaviours:
+- The Ingress Controller is a real load balancer (nginx), not just relying on
+  the Service's built-in round-robin — it's what's reachable from outside
+  the cluster at `http://localhost`, and it's what `watch-lb.sh` hits.
+- `load-generator` (drives HPA scale-up) hits the Service directly
+  in-cluster; `watch-lb.sh` goes through the Ingress from outside. Different
+  paths, same pod pool — lets one terminal show HPA-triggered scaling while
+  another simultaneously shows the load balancer picking up each new pod.
+- See `k8s/README.md` for the full 4-terminal recording script (HPA watch,
+  pods watch, load-balancer watch, traffic ramp commands).
+
+**Status:** not yet run end-to-end on this machine (`kind`/`docker` aren't
+on this Windows host's PATH — this is designed to run inside a Codespace,
+per the existing `k8s/README.md`). Next action: run `bash k8s/bootstrap.sh`
+in a Codespace, work through the 4-terminal script, then record the Loom.
 
 ---
 
@@ -523,6 +587,6 @@ Never remove setup steps — only add or clarify them.
 
 1. Read this file
 2. Check the Phase table above for current status
-3. Read any files already created in `apps/api/src/` and `apps/web/`
+3. Read any files already created in `api/common/src/` and `web/`
 4. Continue from "Next action" above
 5. Update this file before ending the session

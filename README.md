@@ -338,6 +338,29 @@ pulse/
 
 ---
 
+## Deviations from the org engineering standard
+
+Pulse follows the CueLABS OSS engineering standard (`oss-engineering-standards`)
+at the root/community-health layer — `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+`SECURITY.md`, `CODEOWNERS`, `CHANGELOG.md`, `LICENSE`, `.editorconfig`, the
+compose-driven `Makefile`, and `docs/{overview,setup}.md` all match the
+standard's required shape. The service-internal layer diverges deliberately —
+it predates adoption of the standard and hasn't been reconciled with it:
+
+| Area | Standard | Pulse | Why not migrated |
+|---|---|---|---|
+| Go package naming | Singular (`model/`, `service/`, `util/`) | Plural (`internal/models/`, `internal/services/`, `internal/utils/`) | Renaming is a mechanical but repo-wide import-path refactor across every module; not worth the churn without a concrete driver |
+| Go internal layout | Layer-first — one `handler/`, `service/`, `repository/`, `model/` spanning all features | Feature-first — `internal/modules/{auth,campaigns,wallet,...}`, each owning its own `dto.go`/`service.go`/`handler.go`/`routes.go` | Feature modules keep each domain's HTTP/DTO/business logic co-located, which has worked well as the module count grew (8 modules as of Phase 12); no `repository/` layer exists — modules call the Mongo driver directly |
+| `internal/database` | No equivalent slot | `mongodb.go`, `redis.go` connection setup | Small enough (2 files) that splitting it into `config`/`repository` wasn't worth it |
+| Deploy mechanism | `deploy/{docker,helm,terraform}` — one Helm chart on Kubernetes | Railway (API) + Vercel (web) in production; a standalone `k8s/` (raw manifests: `api-deployment.yaml`, `hpa.yaml`, `ingress.yaml`, etc.) exists only as an in-progress HPA + load-balancer demo on the `k8s-hpa-demo` branch — see `k8s/README.md` | Pulse's actual production target is managed PaaS (Railway/Vercel), not self-managed Kubernetes — adopting Helm/Terraform would mean standing up a cluster with no product need for one |
+| API port | `8080` | `5000` | Set before the standard existed; changing it now means updating Dockerfile, `.env.example`, docker-compose, and every deployed environment's config for no functional gain |
+
+If a future session brings Pulse fully into line with the standard, update this
+table (and the Phase table above) rather than silently deleting it — it's the
+record of what was a deliberate choice versus what's still owed.
+
+---
+
 ## Environment Variables Reference
 
 ### API (`api/common/.env`)

@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-contrib/cors"
@@ -61,6 +62,11 @@ func Setup() *gin.Engine {
 		utils.OK(c, http.StatusOK, "Pulse API is running", gin.H{
 			"status": "ok",
 			"env":    config.App.Env,
+			// Set via the downward API (see k8s/api-deployment.yaml) — empty
+			// outside k8s. Lets the load-balancer demo prove which replica
+			// actually answered each request instead of just trusting that
+			// it's "probably" spread across pods.
+			"pod": os.Getenv("POD_NAME"),
 		})
 	})
 

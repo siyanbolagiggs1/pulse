@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Spins up a local kind cluster running pulse-api + mongo + redis, with an
-# HPA watching pulse-api's CPU. Run from the repo root inside the Codespace:
+# Spins up a local kind cluster running pulse-api + mongo + redis, fronted by
+# an nginx Ingress (load balancer) and watched by an HPA on pulse-api's CPU.
+# Run from the repo root inside the Codespace:
 #
 #   bash k8s/bootstrap.sh
 #
@@ -25,10 +26,21 @@ fi
 
 echo "==> Creating kind cluster (${CLUSTER_NAME}) if it doesn't exist..."
 if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-  kind create cluster --name "${CLUSTER_NAME}"
+  # Uses kind-config.yaml (not a bare `kind create cluster`) so that hostPorts
+  # 80/443 are mapped in and the control-plane node is labeled ingress-ready
+  # up front — both are cluster-creation-time-only settings.
+  kind create cluster --name "${CLUSTER_NAME}" --config k8s/kind-config.yaml
 else
   echo "    Cluster already exists, reusing it."
 fi
+
+echo "==> Installing nginx Ingress Controller (the load balancer)..."
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+echo "==> Waiting for the Ingress Controller to be ready..."
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=180s
 
 echo "==> Building pulse-api image..."
 docker build -t pulse-api:local -f api/common/Dockerfile api/common
@@ -36,8 +48,8 @@ docker build -t pulse-api:local -f api/common/Dockerfile api/common
 echo "==> Loading image into kind..."
 kind load docker-image pulse-api:local --name "${CLUSTER_NAME}"
 
-echo "==> Applying mongo, redis, pulse-api..."
-kubectl apply -f k8s/mongo.yaml -f k8s/redis.yaml -f k8s/api-deployment.yaml -f k8s/api-service.yaml
+echo "==> Applying mongo, redis, pulse-api, ingress..."
+kubectl apply -f k8s/mongo.yaml -f k8s/redis.yaml -f k8s/api-deployment.yaml -f k8s/api-service.yaml -f k8s/ingress.yaml
 
 echo "==> Waiting for pulse-api to be ready..."
 kubectl rollout status deployment/pulse-api --timeout=450s
@@ -61,6 +73,8 @@ echo ""
 echo "==> Ready. Useful commands:"
 echo "    kubectl get hpa pulse-api -w                              # watch the HPA decide"
 echo "    kubectl get pods -w                                       # watch pods come and go"
+echo "    bash k8s/watch-lb.sh                                      # watch the load balancer spread requests across pods"
+echo "    curl http://localhost/health                              # hit pulse-api through the Ingress load balancer"
 echo "    kubectl scale deployment/load-generator --replicas=6      # ramp up traffic"
 echo "    kubectl scale deployment/load-generator --replicas=0      # stop traffic"
 echo "    kind delete cluster --name ${CLUSTER_NAME}                # tear down when done"

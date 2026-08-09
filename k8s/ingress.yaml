@@ -1,0 +1,21 @@
+# The "proper" load balancer: an nginx Ingress Controller (installed by
+# bootstrap.sh) is the single entrypoint on hostPort 80, and reverse-proxies
+# every request to whichever pulse-api pod it round-robins to next. The
+# Service (api-service.yaml) still does the actual pod selection/health
+# tracking underneath — the Ingress is the L7 front door on top of it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pulse-api
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pulse-api
+                port:
+                  number: 80
