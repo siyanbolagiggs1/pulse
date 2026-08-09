@@ -24,13 +24,18 @@ spec:
               value: secret
             - name: MONGO_INITDB_DATABASE
               value: pulse
+          # Generous on purpose — unlike pulse-api, mongo isn't what the HPA
+          # watches, so there's no demo reason to keep it CPU-starved. A tight
+          # limit here was observed throttling the one-time root-user-creation
+          # bootstrap (wiredTiger init + admin user via a temp loopback-only
+          # mongod) to 10+ minutes on an otherwise mostly-idle Codespace node.
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 300m
+              cpu: 200m
               memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
