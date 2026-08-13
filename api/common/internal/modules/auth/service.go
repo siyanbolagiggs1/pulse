@@ -1,11 +1,13 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -116,6 +118,25 @@ func register(ctx context.Context, req RegisterRequest) (*models.User, string, e
 		if _, err := chat.SendWelcomeMessage(context.Background(), user.ID.Hex()); err != nil {
 			fmt.Printf("Warning: could not send welcome message to %s: %v\n", user.Email, err)
 		}
+	}()
+
+	// Notify n8n lead-sync webhook (non-blocking — log failures, never fail
+	// registration). No-ops gracefully if N8N_LEAD_WEBHOOK_URL isn't configured.
+	go func() {
+		webhookURL := os.Getenv("N8N_LEAD_WEBHOOK_URL")
+		if webhookURL == "" {
+			return
+		}
+		payload, _ := json.Marshal(map[string]string{
+			"email": user.Email,
+			"name":  user.Name,
+		})
+		resp, err := http.Post(webhookURL, "application/json", bytes.NewReader(payload))
+		if err != nil {
+			fmt.Printf("Warning: could not notify n8n lead webhook for %s: %v\n", user.Email, err)
+			return
+		}
+		defer resp.Body.Close()
 	}()
 
 	accessToken, err := utils.GenerateAccessToken(user.ID.Hex(), string(user.Role))
