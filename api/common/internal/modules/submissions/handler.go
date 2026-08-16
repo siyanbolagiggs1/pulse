@@ -24,8 +24,6 @@ func handleCreateSubmission(c *gin.Context) {
 		switch {
 		case errors.Is(err, ErrAccountSuspended):
 			utils.Fail(c, http.StatusForbidden, err.Error())
-		case errors.Is(err, ErrRateLimited):
-			utils.Fail(c, http.StatusTooManyRequests, err.Error())
 		case errors.Is(err, ErrCampaignNotActive), errors.Is(err, ErrCampaignExpired), errors.Is(err, ErrCampaignFull):
 			utils.Fail(c, http.StatusBadRequest, err.Error())
 		case errors.Is(err, ErrPlatformMismatch), errors.Is(err, ErrEligibility):

@@ -34,7 +34,6 @@ var (
 	ErrEligibility        = errors.New("social account does not meet campaign eligibility requirements")
 	ErrAlreadySubmitted   = errors.New("you have already submitted to this campaign")
 	ErrDuplicateRepostURL = errors.New("this repost URL has already been submitted by another promoter")
-	ErrRateLimited        = errors.New("submission rate limit exceeded — maximum 3 submissions per hour")
 	ErrNotReviewable      = errors.New("submission is not in a reviewable state")
 	ErrUnsupportedFile    = errors.New("screenshot must be a JPG, PNG, or WEBP image")
 	ErrAccountSuspended   = errors.New("your account is suspended — contact support")
@@ -62,10 +61,9 @@ func createSubmission(ctx context.Context, promoterID string, req CreateSubmissi
 		return nil, ErrAccountSuspended
 	}
 
-	// Rate limit: max 3 submissions per hour per promoter.
-	if err := checkRateLimit(ctx, promoterID); err != nil {
-		return nil, err
-	}
+	// Rate limiting (3 submissions/hour) is enforced at the route level —
+	// see middleware.RateLimit on POST /submissions — so it rejects before
+	// any of this service logic runs, not partway through it.
 
 	// Load campaign.
 	campObjID, err := bson.ObjectIDFromHex(req.CampaignID)
@@ -504,24 +502,6 @@ func saveScreenshot(file multipart.File, header *multipart.FileHeader) (string, 
 }
 
 // ── Helpers ──────────────────────────────────────────────────
-
-func checkRateLimit(ctx context.Context, promoterID string) error {
-	if database.Redis == nil {
-		return nil // rate limiting disabled when Redis unavailable
-	}
-	key := fmt.Sprintf("rate:submissions:%s", promoterID)
-	count, err := database.Redis.Incr(ctx, key).Result()
-	if err != nil {
-		return nil // fail open on Redis error
-	}
-	if count == 1 {
-		database.Redis.Expire(ctx, key, time.Hour)
-	}
-	if count > 3 {
-		return ErrRateLimited
-	}
-	return nil
-}
 
 func containsIndex(errMsg, indexName string) bool {
 	return len(errMsg) >= len(indexName) && containsStr(errMsg, indexName)
