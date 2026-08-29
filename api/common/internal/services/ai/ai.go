@@ -49,6 +49,14 @@ func replyGroq(ctx context.Context, systemPrompt, userMessage string) (string, e
 		},
 		"temperature": 0.3,
 		"max_tokens":  300,
+		// GroqModel defaults to a reasoning model (openai/gpt-oss-120b), which
+		// spends part of max_tokens on hidden reasoning tokens before the
+		// visible reply. Left at the model's default effort, that reasoning
+		// can consume the whole budget and return empty content (finish_reason
+		// "length"). "low" keeps just enough reasoning to follow the system
+		// prompt's rules while leaving room for the actual reply. Ignored by
+		// non-reasoning models if GROQ_MODEL is overridden to one.
+		"reasoning_effort": "low",
 	})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,

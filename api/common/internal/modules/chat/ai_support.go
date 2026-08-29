@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ const (
 )
 
 // humanHandoffPhrases catches common ways of asking for a real person. This
-// runs before any AI call — a match escalates immediately and deterministically,
+// runs before any AI call, a match escalates immediately and deterministically,
 // rather than depending on the model to always honor the system-prompt rule.
 var humanHandoffPhrases = []string{
 	"talk to a human", "talk to human", "speak to a human", "speak to human",
@@ -40,9 +41,7 @@ var humanHandoffPhrases = []string{
 	"actual human",
 }
 
-// wantsHumanHandoff reports whether body is asking to be connected to a
-// real person rather than the bot — this always escalates, even for
-// questions the bot could otherwise answer.
+
 func wantsHumanHandoff(body string) bool {
 	lower := strings.ToLower(body)
 	for _, phrase := range humanHandoffPhrases {
@@ -53,13 +52,6 @@ func wantsHumanHandoff(body string) bool {
 	return false
 }
 
-// MaybeRespondAsSupportAI is fire-and-forget-called after a message is sent
-// into a conversation. It only acts when the sender is a real user (not the
-// support admin/bot itself) and the other participant is the configured
-// support admin. It either answers automatically — casual conversation, or
-// something matching a previously-learned admin answer — or sends the fixed
-// escalation reply and flags the conversation for a human. No-op if no AI
-// provider or support admin is configured.
 func MaybeRespondAsSupportAI(ctx context.Context, conversationID, senderID, body string) {
 	if config.App.GroqAPIKey == "" && config.App.GeminiAPIKey == "" {
 		return
@@ -72,9 +64,7 @@ func MaybeRespondAsSupportAI(ctx context.Context, conversationID, senderID, body
 	if err != nil {
 		return
 	}
-	// Once a conversation is escalated, the AI stops replying entirely —
-	// the thread stays in human mode until an admin answers and
-	// CaptureSupportKnowledge clears the flag.
+
 	if conv.NeedsAdminReview {
 		return
 	}
@@ -110,6 +100,9 @@ func MaybeRespondAsSupportAI(ctx context.Context, conversationID, senderID, body
 
 		var replyErr error
 		reply, replyErr = ai.Reply(ctx, systemPrompt, body)
+		if replyErr != nil {
+			log.Printf("[AISupport] ai.Reply failed, escalating to admin: %v", replyErr)
+		}
 		escalate = replyErr != nil || isEscalationSignal(reply)
 		if escalate {
 			reply = escalationMessageBody
@@ -170,11 +163,7 @@ func isEscalationSignal(reply string) bool {
 	return trimmed == "" || trimmed == "ESCALATE"
 }
 
-// pulseAppContext grounds the model in what Pulse actually is, so general
-// "what is this / how does it work" questions can be answered directly
-// instead of escalating or — worse — the model guessing and getting it
-// wrong. Keep this in sync with the "What Is Pulse" / "Core Flow" sections
-// of CLAUDE.md if the product model changes.
+
 const pulseAppContext = `About Pulse, the platform you support:
 Pulse is a social engagement marketplace. Businesses create repost campaigns (also shown as "adverts") with a budget and a payout rate. Promoters — everyday users — earn money by reposting those campaigns on Instagram or Twitter/X and submitting proof (the post URL plus a screenshot). An admin reviews each submission and approves or rejects it. Pulse takes a platform commission (20% by default) out of each approved payout.
 

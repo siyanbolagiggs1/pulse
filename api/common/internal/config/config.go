@@ -112,9 +112,9 @@ func Load() {
 		SupportAdminEmail: getEnv("SUPPORT_ADMIN_EMAIL", ""),
 
 		GroqAPIKey:           getEnv("GROQ_API_KEY", ""),
-		GroqModel:            getEnv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+		GroqModel:            getEnv("GROQ_MODEL", "openai/gpt-oss-120b"),
 		GeminiAPIKey:         getEnv("GEMINI_API_KEY", ""),
-		GeminiModel:          getEnv("GEMINI_MODEL", "gemini-2.0-flash"),
+		GeminiModel:          getEnv("GEMINI_MODEL", "gemini-3.6-flash"),
 		GeminiEmbeddingModel: getEnv("GEMINI_EMBEDDING_MODEL", "text-embedding-004"),
 	}
 }
