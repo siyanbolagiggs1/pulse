@@ -29,3 +29,6 @@ Thumbs.db
 
 # Fly.io
 fly.toml.bak
+
+# Generated PDF export of the pitch site (regenerate from pitch/index.html)
+pitch/export/
