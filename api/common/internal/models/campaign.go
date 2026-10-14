@@ -36,6 +36,11 @@ type Campaign struct {
 	MaxParticipants     int `bson:"maxParticipants"     json:"maxParticipants"`
 	CurrentParticipants int `bson:"currentParticipants" json:"currentParticipants"`
 
+	// Embedding is the title and description's meaning (ai.EmbeddingVersion
+	// in EmbeddingModel), used by marketplace search; never sent to clients.
+	Embedding      []float32 `bson:"embedding,omitempty"      json:"-"`
+	EmbeddingModel string    `bson:"embeddingModel,omitempty" json:"-"`
+
 	Status    CampaignStatus `bson:"status"    json:"status"`
 	StartDate time.Time      `bson:"startDate" json:"startDate"`
 	EndDate   time.Time      `bson:"endDate"   json:"endDate"`

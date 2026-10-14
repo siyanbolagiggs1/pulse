@@ -45,12 +45,15 @@ const MessagesCollection = "messages"
 // reply in a support conversation, used to let the AI support assistant
 // answer similar future questions automatically. Embedding is populated via
 // the configured embeddings provider (Gemini) and never serialized to any
-// API response — it's only used for in-process cosine-similarity search.
+// API response — it's only used for retrieval (Atlas Vector Search, or an
+// in-process cosine scan where Atlas Search isn't available).
+// EmbeddingModel records which model made Embedding (ai.EmbeddingVersion).
 type KnowledgeEntry struct {
 	ID                   bson.ObjectID `bson:"_id,omitempty"          json:"id"`
 	Question             string        `bson:"question"               json:"question"`
 	Answer               string        `bson:"answer"                 json:"answer"`
 	Embedding            []float32     `bson:"embedding"               json:"-"`
+	EmbeddingModel       string        `bson:"embeddingModel,omitempty" json:"-"`
 	SourceConversationID bson.ObjectID `bson:"sourceConversationId"    json:"sourceConversationId"`
 	CreatedAt            time.Time     `bson:"createdAt"               json:"createdAt"`
 }

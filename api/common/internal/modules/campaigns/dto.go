@@ -39,6 +39,10 @@ type CampaignListQuery struct {
 	Page     int    `form:"page"`
 	Limit    int    `form:"limit"`
 	Sort     string `form:"sort"`
+	// Q searches by keywords and meaning; Eligible keeps only campaigns the
+	// signed-in promoter can take with one of their active social accounts.
+	Q        string `form:"q"        binding:"max=200"`
+	Eligible bool   `form:"eligible"`
 }
 
 // ── Responses ────────────────────────────────────────────────

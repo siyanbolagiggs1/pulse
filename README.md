@@ -406,7 +406,7 @@ pulse/
 
 | Method | Endpoint | Auth | Role | Description |
 |---|---|---|---|---|
-| GET | `/api/campaigns` | Bearer | any | Browse active campaigns (marketplace) |
+| GET | `/api/campaigns` | Bearer | any | Browse active campaigns (marketplace). `?q=` searches by keywords and meaning over live adverts (active, not ended, not full, budget left); `?eligible=true` keeps only adverts one of your active social accounts qualifies for |
 | POST | `/api/campaigns` | Bearer | business | Create campaign (locks budget from wallet) |
 | GET | `/api/campaigns/my` | Bearer | business | List own campaigns |
 | GET | `/api/campaigns/:id` | Bearer | any | Get single campaign |

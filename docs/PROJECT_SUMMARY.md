@@ -29,7 +29,8 @@ Because reposts can't be verified programmatically (Instagram/Twitter don't expo
 ### Other shipped features
 - Email/password auth (JWT access+refresh, email verification, password reset) + Google OAuth.
 - Real-time notifications over Server-Sent Events (submission approved/rejected, withdrawal processed, wallet top-up).
-- **AI support chat** — Groq-primary/Gemini-fallback LLM assistant with embeddings for retrieval, delivered over WebSocket, that answers user questions without always escalating to a human admin.
+- **AI support chat** — Groq-primary/Gemini-fallback LLM assistant with hybrid retrieval (Atlas Vector Search + Atlas Search BM25, fused with RRF) over answers learned from admin replies, delivered over WebSocket, that answers user questions without always escalating to a human admin.
+- **Marketplace search** — hybrid keyword (Atlas Search BM25) + meaning (embeddings) search over live adverts, with an "I qualify" filter for promoters.
 - Marketing landing page, Terms/Privacy acceptance gate, mobile-responsive dashboard.
 - Full CI/CD: GitHub Actions → Railway (API) + Vercel (web), Dockerized, health-checked.
 
@@ -39,7 +40,7 @@ Because reposts can't be verified programmatically (Instagram/Twitter don't expo
 |---|---|
 | Frontend | Next.js 14, TypeScript, Tailwind, shadcn/ui (Radix), Zustand, Recharts |
 | Backend | Go + Gin, ~9.7K LOC |
-| Database | MongoDB (mongo-driver v2) |
+| Database | MongoDB Atlas (mongo-driver v2), with Atlas Search and Atlas Vector Search |
 | Cache / rate limiting | Redis (sliding-window middleware) |
 | Payments | Paystack — Transactions API (top-ups) + Transfers API (real bank payouts), webhook-driven, idempotent |
 | Real-time | Server-Sent Events (notifications) + WebSocket (AI support chat) |

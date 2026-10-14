@@ -146,9 +146,30 @@ func replyGemini(ctx context.Context, systemPrompt, userMessage string) (string,
 	return strings.TrimSpace(parsed.Candidates[0].Content.Parts[0].Text), nil
 }
 
+// EmbeddingVersion names the model and size of the vectors Embed returns.
+// It is stored next to every saved embedding, so vectors from an older model
+// (which can't be compared with new ones) are found and re-embedded.
+func EmbeddingVersion() string {
+	return fmt.Sprintf("%s/%d", config.App.GeminiEmbeddingModel, config.App.GeminiEmbeddingDims)
+}
+
+// Embedding task types for asymmetric search, where short queries are
+// matched against longer documents (marketplace campaigns). Vectors made for
+// one side are only compared with the other side.
+const (
+	TaskQuery    = "RETRIEVAL_QUERY"
+	TaskDocument = "RETRIEVAL_DOCUMENT"
+)
+
 // Embed returns a semantic embedding vector for text. Gemini is the only
 // embeddings provider wired up — Groq doesn't expose an embeddings endpoint.
 func Embed(ctx context.Context, text string) ([]float32, error) {
+	return EmbedFor(ctx, text, "")
+}
+
+// EmbedFor is Embed with a task type (TaskQuery or TaskDocument); "" is the
+// model's default, used for like-for-like matching (question to question).
+func EmbedFor(ctx context.Context, text, task string) ([]float32, error) {
 	if config.App.GeminiAPIKey == "" {
 		return nil, ErrNoProvider
 	}
@@ -156,11 +177,18 @@ func Embed(ctx context.Context, text string) ([]float32, error) {
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:embedContent?key=%s",
 		config.App.GeminiEmbeddingModel, config.App.GeminiAPIKey)
 
-	payload, _ := json.Marshal(map[string]any{
+	reqBody := map[string]any{
 		"content": map[string]any{
 			"parts": []map[string]string{{"text": text}},
 		},
-	})
+	}
+	if config.App.GeminiEmbeddingDims > 0 {
+		reqBody["outputDimensionality"] = config.App.GeminiEmbeddingDims
+	}
+	if task != "" {
+		reqBody["taskType"] = task
+	}
+	payload, _ := json.Marshal(reqBody)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {

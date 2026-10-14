@@ -12,6 +12,8 @@ import (
 
 	"github.com/pulse/api/internal/config"
 	"github.com/pulse/api/internal/database"
+	"github.com/pulse/api/internal/modules/campaigns"
+	"github.com/pulse/api/internal/modules/chat"
 	"github.com/pulse/api/internal/router"
 )
 
@@ -21,6 +23,11 @@ func main() {
 	database.ConnectMongo()
 	database.ConnectRedis()
 	database.CreateIndexes()
+	database.EnsureSearchIndexes(config.App.GeminiEmbeddingDims)
+	go func() {
+		chat.BackfillKnowledgeEmbeddings(context.Background())
+		campaigns.BackfillCampaignEmbeddings(context.Background())
+	}()
 
 	r := router.Setup()
 

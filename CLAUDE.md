@@ -412,6 +412,9 @@ apps/api/
   internal/modules/campaigns/dto.go    CreateCampaignRequest, UpdateCampaignRequest, CampaignResponse, CampaignListQuery, CampaignListMeta + mapper
   internal/modules/campaigns/service.go createCampaign (locks wallet), getCampaigns (marketplace), getCampaign, getMyCampaigns, updateCampaign, deleteCampaign (refunds wallet)
   internal/modules/campaigns/handler.go HTTP handlers for all campaign routes
+  internal/modules/campaigns/search.go  Marketplace search (?q=, ?eligible=): live filter + Atlas Search BM25 + embedding cosine, fused with RRF
+  internal/modules/chat/knowledge_search.go  Support-bot retrieval: Atlas Vector Search + Atlas Search BM25, fused with RRF
+  internal/database/search_indexes.go   Creates the 3 Atlas Search indexes on start; in-process fallback without Atlas Search
   internal/modules/campaigns/routes.go  GET /campaigns, POST /campaigns, GET /campaigns/my, GET /campaigns/:id, PATCH /campaigns/:id, DELETE /campaigns/:id
 
   internal/router/router.go             Updated — users + campaigns modules wired

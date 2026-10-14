@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { campaignsApi, conversationsApi } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import type { Campaign } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { Search, Users, TrendingUp, MessageCircle } from "lucide-react";
+import { Search, Users, TrendingUp, MessageCircle, BadgeCheck } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 
 export default function MarketplacePage() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [eligibleOnly, setEligibleOnly] = useState(false);
   const [platform, setPlatform] = useState("all");
   const [messagingId, setMessagingId] = useState<string | null>(null);
 
@@ -34,18 +38,28 @@ export default function MarketplacePage() {
     }
   };
 
+  // Search runs on the server (keywords + meaning, live adverts only), so
+  // wait for a pause in typing before asking.
   useEffect(() => {
-    const params: Record<string, string> = {};
-    if (platform !== "all") params.platform = platform;
-    campaignsApi.list(params)
-      .then((r) => setCampaigns(r.data.data))
-      .catch(() => toast({ title: "Failed to load marketplace", variant: "destructive" }))
-      .finally(() => setLoading(false));
-  }, [platform]);
+    const t = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const filtered = campaigns.filter((c) =>
-    !search || c.title.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    let stale = false;
+    const params: Record<string, string> = { limit: "50" };
+    if (platform !== "all") params.platform = platform;
+    if (query) params.q = query;
+    if (eligibleOnly) params.eligible = "true";
+    setLoading(true);
+    campaignsApi.list(params)
+      .then((r) => { if (!stale) setCampaigns(r.data.data); })
+      .catch(() => { if (!stale) toast({ title: "Failed to load marketplace", variant: "destructive" }); })
+      .finally(() => { if (!stale) setLoading(false); });
+    return () => { stale = true; };
+  }, [platform, query, eligibleOnly]);
+
+  const filtered = campaigns;
 
   return (
     <div className="space-y-6">
@@ -54,11 +68,30 @@ export default function MarketplacePage() {
         <p className="text-muted-foreground">Pick an advert, repost it on your social account, and submit proof — you earn a payout once it's approved</p>
       </div>
 
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[12rem]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search adverts…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            className="pl-9"
+            placeholder="Search adverts, e.g. food in Lekki"
+            aria-label="Search adverts"
+            maxLength={200}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+        {user?.role === "user" && (
+          <Button
+            type="button"
+            variant={eligibleOnly ? "default" : "outline"}
+            className="gap-1.5 shrink-0"
+            aria-pressed={eligibleOnly}
+            onClick={() => setEligibleOnly((v) => !v)}
+          >
+            <BadgeCheck className="h-4 w-4" />
+            I qualify
+          </Button>
+        )}
         <Select value={platform} onValueChange={setPlatform}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -74,7 +107,9 @@ export default function MarketplacePage() {
           {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-52" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">No adverts found</CardContent></Card>
+        <Card><CardContent className="py-12 text-center text-muted-foreground">
+          {eligibleOnly && !query ? "No adverts you qualify for right now. Connect or verify a social account to see more." : "No adverts found"}
+        </CardContent></Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((c) => (

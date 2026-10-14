@@ -151,6 +151,7 @@ func createCampaign(ctx context.Context, businessID string, req CreateCampaignRe
 	}
 
 	go invalidateMarketplaceCache(ctx)
+	go embedCampaign(campaign.ID, campaign.Title, campaign.Description)
 
 	return campaign, nil
 }
@@ -201,6 +202,7 @@ func getCampaigns(ctx context.Context, q CampaignListQuery) ([]models.Campaign, 
 	skip := int64((q.Page - 1) * q.Limit)
 	cursor, err := col.Find(ctx, filter,
 		options.Find().
+			SetProjection(bson.M{"embedding": 0}).
 			SetSort(bson.D{{Key: sortField, Value: sortDir}}).
 			SetSkip(skip).
 			SetLimit(int64(q.Limit)),
@@ -314,6 +316,9 @@ func updateCampaign(ctx context.Context, businessID, campaignID string, req Upda
 	}
 
 	go invalidateMarketplaceCache(ctx)
+	if req.Title != "" || req.Description != "" {
+		go embedCampaign(campaign.ID, campaign.Title, campaign.Description)
+	}
 
 	return &campaign, nil
 }

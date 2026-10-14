@@ -65,6 +65,7 @@ type Config struct {
 	GeminiAPIKey         string
 	GeminiModel          string
 	GeminiEmbeddingModel string
+	GeminiEmbeddingDims  int
 }
 
 var App *Config
@@ -115,7 +116,8 @@ func Load() {
 		GroqModel:            getEnv("GROQ_MODEL", "openai/gpt-oss-120b"),
 		GeminiAPIKey:         getEnv("GEMINI_API_KEY", ""),
 		GeminiModel:          getEnv("GEMINI_MODEL", "gemini-3.6-flash"),
-		GeminiEmbeddingModel: getEnv("GEMINI_EMBEDDING_MODEL", "text-embedding-004"),
+		GeminiEmbeddingModel: getEnv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"),
+		GeminiEmbeddingDims:  getEnvInt("GEMINI_EMBEDDING_DIMS", 768),
 	}
 }
 

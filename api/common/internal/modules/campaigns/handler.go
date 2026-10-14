@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pulse/api/internal/middleware"
+	"github.com/pulse/api/internal/models"
 	"github.com/pulse/api/internal/utils"
 )
 
@@ -43,17 +44,28 @@ func handleGetCampaigns(c *gin.Context) {
 		return
 	}
 
-	campaigns, total, err := getCampaigns(c.Request.Context(), q)
-	if err != nil {
-		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch campaigns")
-		return
-	}
-
 	if q.Page < 1 {
 		q.Page = 1
 	}
 	if q.Limit < 1 || q.Limit > 50 {
 		q.Limit = 20
+	}
+
+	var campaigns []models.Campaign
+	var total int64
+	var err error
+	if q.Q != "" || q.Eligible {
+		// Search returns its best searchLimit results; pages slice those.
+		campaigns, err = searchCampaigns(c.Request.Context(), middleware.GetUserID(c), q)
+		total = int64(len(campaigns))
+		start := min((q.Page-1)*q.Limit, len(campaigns))
+		campaigns = campaigns[start:min(start+q.Limit, len(campaigns))]
+	} else {
+		campaigns, total, err = getCampaigns(c.Request.Context(), q)
+	}
+	if err != nil {
+		utils.Fail(c, http.StatusInternalServerError, "Failed to fetch campaigns")
+		return
 	}
 
 	resp := make([]CampaignResponse, 0, len(campaigns))

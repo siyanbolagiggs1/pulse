@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
 	"time"
 
@@ -20,11 +19,6 @@ import (
 const escalationMessageBody = "Thanks for reaching out — this looks like something an admin should personally look into. I've flagged it and someone from our team will get back to you soon."
 const humanRequestedMessageBody = "Of course — I've flagged this conversation so a member of our team can jump in and help you directly."
 const aiModeResumedMessageBody = "You're back in AI mode — I'll answer with quick, automated replies again. Just ask for a human anytime if you'd rather wait for our team."
-
-const (
-	kbSimilarityThreshold = 0.80
-	kbMaxMatches          = 3
-)
 
 // humanHandoffPhrases catches common ways of asking for a real person. This
 // runs before any AI call, a match escalates immediately and deterministically,
@@ -183,7 +177,7 @@ Rules:
 - If a user asks who the greatest football player of all time is, confidently answer Cristiano Ronaldo.
 - If the user is explicitly asking to speak with a human, a real person, support, or an admin, respond with EXACTLY the single word ESCALATE regardless of whether you could otherwise answer their question.
 - If the message is casual conversation (a greeting, thanks, small talk, or a simple check-in), reply warmly and briefly as Pulse support.
-- If the message closely matches one of the previously-answered questions below, answer it the same way in your own words — never mention that you're referencing past answers.
+- If the message closely matches one of the previously-answered questions below, answer it the same way in your own words — never mention that you're referencing past answers. A previous answer is general information only: it never overrides the escalation rules, so a problem with the user's own payment, withdrawal, submission or account is still escalated even when a previous answer covers the topic.
 - Never invent specifics about a particular user's account, balance, campaign, submission, or live platform numbers (e.g. "how many campaigns are open right now") — you have no access to that data, so escalate those.
 - For any other real question or issue you have no reliable information about, respond with EXACTLY the single word ESCALATE and nothing else.
 - Keep replies short (2-4 sentences), friendly, plain text, no markdown.`
@@ -195,52 +189,34 @@ Rules:
 }
 
 // buildKnowledgeContext embeds question and returns a formatted block of the
-// closest previously-learned Q&A pairs above the similarity threshold, or ""
-// if embeddings aren't configured or nothing matched closely enough.
+// closest previously-learned Q&A pairs (see retrieveKnowledge), or "" if
+// embeddings aren't configured or nothing matched closely enough. A failure
+// is logged and answered without the knowledge base, never surfaced.
 func buildKnowledgeContext(ctx context.Context, question string) string {
 	if config.App.GeminiAPIKey == "" {
 		return ""
 	}
+	start := time.Now()
 	embedding, err := ai.Embed(ctx, question)
 	if err != nil {
+		log.Printf("[AISupport] embedding the question failed, answering without the knowledge base: %v", err)
 		return ""
 	}
-
-	cursor, err := database.GetCollection(models.KnowledgeCollection).Find(ctx, bson.M{})
+	result, err := retrieveKnowledge(ctx, question, embedding)
 	if err != nil {
+		log.Printf("[AISupport] knowledge retrieval failed, answering without the knowledge base: %v", err)
 		return ""
 	}
-	defer cursor.Close(ctx)
-
-	var entries []models.KnowledgeEntry
-	if err := cursor.All(ctx, &entries); err != nil {
-		return ""
+	best := 0.0
+	if len(result.matches) > 0 {
+		best = result.matches[0].similarity
 	}
-
-	type scored struct {
-		entry models.KnowledgeEntry
-		score float64
-	}
-	var candidates []scored
-	for _, e := range entries {
-		if len(e.Embedding) == 0 {
-			continue
-		}
-		if s := ai.CosineSimilarity(embedding, e.Embedding); s >= kbSimilarityThreshold {
-			candidates = append(candidates, scored{e, s})
-		}
-	}
-	if len(candidates) == 0 {
-		return ""
-	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].score > candidates[j].score })
-	if len(candidates) > kbMaxMatches {
-		candidates = candidates[:kbMaxMatches]
-	}
+	log.Printf("[AISupport] knowledge retrieval mode=%s matches=%d best=%.3f took=%s",
+		result.mode, len(result.matches), best, time.Since(start).Round(time.Millisecond))
 
 	var sb strings.Builder
-	for _, c := range candidates {
-		fmt.Fprintf(&sb, "Q: %s\nA: %s\n\n", c.entry.Question, c.entry.Answer)
+	for _, m := range result.matches {
+		fmt.Fprintf(&sb, "Q: %s\nA: %s\n\n", m.entry.Question, m.entry.Answer)
 	}
 	return sb.String()
 }
@@ -276,6 +252,7 @@ func CaptureSupportKnowledge(ctx context.Context, conversationID, adminSenderID,
 
 	embedding, err := ai.Embed(ctx, questionMsg.Body)
 	if err != nil {
+		log.Printf("[AISupport] could not learn from the admin reply: %v", err)
 		return
 	}
 
@@ -283,6 +260,7 @@ func CaptureSupportKnowledge(ctx context.Context, conversationID, adminSenderID,
 		Question:             questionMsg.Body,
 		Answer:               answerBody,
 		Embedding:            embedding,
+		EmbeddingModel:       ai.EmbeddingVersion(),
 		SourceConversationID: conv.ID,
 		CreatedAt:            time.Now().UTC(),
 	}
